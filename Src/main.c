@@ -54,6 +54,7 @@ typedef enum {
 
 //nkyugyujgyulgy7uli
 //hihihih
+//mohjiofdsfs
 
 
 static void AvoidDelay(void)
