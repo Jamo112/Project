@@ -5,6 +5,7 @@
  ******************************************************************************
  */
 
+#include "ultrasonic.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -30,6 +31,13 @@
 //Adjust this value if the rotation is too short or too long.
 #define AVOID_DELAY_COUNT 300000U
 
+//Common distances
+#define SENSOR_OFFSET_MM        200U // A value that allows for easy adjustments of offset
+#define TARGET_DISTANCE_350_MM  (350U + SENSOR_OFFSET_MM)
+#define TARGET_DISTANCE_400_MM  (400U + SENSOR_OFFSET_MM)
+
+#define SEARCH_ROTATION_INCREMENT_DEG 17
+
 // FSM states
 typedef enum {
     IDLE = 0,
@@ -44,23 +52,47 @@ typedef enum {
 # define NULL 0
 # define TRUE 1
 
-/*
- * TODO:
- * ORIENT requires a reliable way to measure a 90-degree turn.
- * Add odometry/gyro variables once the relevant Kobuki interface
- * is confirmed.
- */
+// CUSTOM FUNCTIONS //////////////////////////////////////////
+/////////////////////////////////////////////////////////////
+bool DETECT_BOLLARD(US_Typedef *object, uint16_t distance)
+{
+    Ultrasonic_Detect(object);  // Update ultrasonic measurement
 
-/*
- * Send a raw Kobuki base-control packet.
- *
- * speed: linear velocity in mm/s
- * radius: turning radius in mm
- *
- * NOTE:
- * A radius of zero is a special Kobuki command for rotation
- * in place. A non-zero radius specifies a curved trajectory.
- */
+    if (object->range_mm <= distance)
+    {
+        return true;  // Object detected within the target distance
+    }
+
+    return false;  // No object detected within the target distance
+}
+
+bool Rotate_Angle(Kobuki_Typedef *kobuki, int16_t angle)
+{
+    static bool started = false;
+    static int16_t target_angle = 0;
+
+    // Set the target once when a new rotation starts
+    if (!started)
+    {
+        Kobuki_Rotate_Angle_Setpoint(kobuki->angle, angle);
+        target_angle = angle;
+        started = true;
+    }
+
+    // Keep rotating towards the target
+    Kobuki_Rotate_Angle(kobuki->angle);
+
+    // Check if the rotation has finished
+    if (kobuki->rotation_complete)
+    {
+        started = false;
+        return true;
+    }
+
+    return false;
+}
+/////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
 
 static void Send_Kobuki_Move(int16_t speed, int16_t radius)
 {
@@ -82,6 +114,9 @@ int main ( void ) {
     // Both of these only for testing purposes . Not required
     volatile uint16_t ultrasonic_read;
     volatile uint16_t adc_read;
+    bool search_done = false; 
+    bool rotating = false;
+    bool found_bollard = false;
     Kobuki_Typedef kobuki;
     US_Typedef object;
     Kobuki_LED_Enum led_1, led_2;
@@ -91,6 +126,8 @@ int main ( void ) {
     state = IDLE;
     led_1 = OFF;
     led_2 = OFF;
+
+
     while (1) {
         Kobuki_Read (&kobuki );
         Ultrasonic_Detect (&object ) ;
@@ -100,36 +137,70 @@ int main ( void ) {
         Kobuki_Update_LEDs ( led_1 , led_2);
         // A TEST FSM
         switch (state) {
+
+
         case IDLE:
+            Kuboki_Drive(STOP);
+
+            led_1 = GREEN;
+            led_2 = GREEN;
             if (kobuki.button == BUTTON_0_START){
             state = SEARCH;
-            led_1 = RED;
-            Kobuki_Rotate_Angle_Setpoint( kobuki.angle , 450) ;
-            // Kobuki_Drive_Distance_Setpoint ( kobuki .distance ,100) ;
-            }else if (kobuki.button == BUTTON_1_STOP) {
-            state = SEARCH;
-            led_1 = RED;
-            Kobuki_Rotate_Angle_Setpoint( kobuki.angle, 270) ;
-            // Kobuki_Drive_Distance_Setpoint ( kobuki .distance , -100) ;
-            }else if (kobuki.button == BUTTON_2_ROTATE) {
-            state = SEARCH;
-            led_1 = RED;
-            Kobuki_Rotate_Angle_Setpoint( kobuki.angle , 90);
-            // Kobuki_Drive_Distance_Setpoint ( kobuki .distance ,1000) ;
-            } else {
-                Kobuki_Drive(STOP) ;
             }
             break;
-        case SEARCH :
-            if((kobuki.wheeldrop != NULL)|((kobuki.bumper+kobuki.cliff) != NULL)|(kobuki.rotation_complete == TRUE)|(kobuki.distance_complete == TRUE)){
-            state = IDLE;
-            led_1 = YELLOW;
-            }else {
-            Kobuki_Rotate_Angle( kobuki.angle);
-            // Kobuki_Drive_Distance ( kobuki . distance );
+
+
+        ccase SEARCH:
+
+            led_1 = RED;
+            led_2 = OFF;
+
+            // Safety check
+            if (kobuki.wheeldrop != 0)
+            {
+                rotating = false;
+                found_bollard = false;
+                state = IDLE;
+                break;
             }
-            break ;
+
+            // If currently rotating, continue until rotation completes
+            if (rotating)
+            {
+                if (Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG))
+                {
+                    rotating = false;
+                }
+
+                break;
+            }
+
+            // Only check the sensor when stationary
+            if (SEARCH_BOLLARD(&object, TARGET_DISTANCE_350_MM))
+            {
+                // A bollard has been found
+                found_bollard = true;
+            }
+            else if (found_bollard)
+            {
+                // Previously detected a bollard, now facing an empty space
+                Kobuki_Drive(STOP);
+                state = ORIENT;
+                break;
+            }
+
+            // Continue scanning in small angular increments
+            rotating = true;
+
+            // Start the next rotation
+            Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG);
+
+            break;
+
         case ORIENT:
+            if    
+
+
             break;
         case PATHFIND:
             break;
