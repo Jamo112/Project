@@ -24,9 +24,9 @@
 #include "adc.h"
 #include "Ultrasonic.h"
 
-#define BUTTON_0_START      0x01U  // Confirm the values from my_kobuki
-#define BUTTON_1_STOP       0x02U  // Confirm the values from my_kobuki
-#define BUTTON_2_ROTATE     0x04U  // Confirm the values from my_kobuki
+#define BUTTON_0_START      0x01U 
+#define BUTTON_1_STOP       0x02U   
+#define BUTTON_2_ROTATE     0x04U  
 
 #define DRIVE_SPEED_MM_S    ((int16_t)100)
 #define ROTATE_SPEED_MM_S   ((int16_t)100)
@@ -120,36 +120,25 @@ int main(void)
                     break;
 
                 case SEARCH:
-                    /* The robot rotates while searching. When the ultrasonic
-                     * sensor detects an object, change to OBJECT.
-                     */
+
                     if (ultrasonic_object.detected != 0U) {
                         state = OBJECT;
                     }
                     break;
 
                 case OBJECT:
-                    /* The robot drives towards the object. A bumper
-                     * or cliff input changes the state to OBSTACLE.
-                     */
+
                     if ((my_kobuki.bumper != 0u) ||
                         (my_kobuki.cliff != 0u)) {
                         state = OBSTACLE;
                     }
 
-                    /* If the ultrasonic sensor loses the object,
-                     * return to SEARCH.
-                     */
                     else if (ultrasonic_object.detected == 0U) {
                         state = SEARCH;
                     }
                     break;
 
                 case OBSTACLE:
-                    /* The robot reverses while the bumper or
-                     * cliff input remains active. When both inputs
-                     * clear, change to AVOID.
-                     */
                     if ((my_kobuki.bumper == 0U ) &&
                         (my_kobuki.cliff == 0U)) {
                         state = AVOID;
@@ -157,9 +146,6 @@ int main(void)
                     break;
 
                 case AVOID:
-                    /* The timed avoidance movement is applied in the
-                     * motor-output switch below.
-                     */
                     break;
 
                 default:
@@ -171,9 +157,6 @@ int main(void)
             }
         }
 
-        /* FSM output actions. Exactly one motor command is
-         * selected according to the current state.
-         */
         switch (state) {
 
             case IDLE:
