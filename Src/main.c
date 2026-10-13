@@ -49,7 +49,7 @@ typedef enum {
     PATHFIND,
     STORAGE,
     DEPOSIT
-} RobotState;
+} RobotState; //check 2
 
 static void AvoidDelay(void)
 {
