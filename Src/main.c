@@ -121,7 +121,7 @@ int main ( void ) {
             }
             break;
         case SEARCH :
-            if ( ( kobuki.wheeldrop != NULL ) |(( kobuki.bumper + kobuki.cliff ) != NULL )|( kobuki.rotation_complete == TRUE ) |( kobuki.distance_complete == TRUE )) {
+            if((kobuki.wheeldrop != NULL)|((kobuki.bumper+kobuki.cliff) != NULL)|(kobuki.rotation_complete == TRUE)|(kobuki.distance_complete == TRUE)){
             state = IDLE;
             led_1 = YELLOW;
             }else {
@@ -129,11 +129,13 @@ int main ( void ) {
             // Kobuki_Drive_Distance ( kobuki . distance );
             }
             break ;
-        case OBSTACLE:
+        case ORIENT:
             break;
-        case AVOID:
+        case PATHFIND:
             break;
-        case OBJECT:
+        case STORAGE:
+            break;
+        case DEPOSIT:
             break;
         }
     }
