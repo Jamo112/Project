@@ -238,9 +238,7 @@ void Kobuki_Rotate_Angle(int16_t current_angle_tick)
 // Driving by distance
 // ============================================================
 
-void Kobuki_Drive_Distance_Setpoint(
-    uint16_t current_distance_tick,
-    int16_t distance)
+void Kobuki_Drive_Distance_Setpoint(uint16_t current_distance_tick, int16_t distance)
 {
     // Convert requested distance in mm to distance ticks.
     setpoint_distance_tick = (int32_t)current_distance_tick
