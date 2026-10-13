@@ -42,6 +42,7 @@
  */
 #define AVOID_DELAY_COUNT 300000U
 
+//im bouta push
 typedef enum {
     IDLE = 0,
     SEARCH,
@@ -49,7 +50,7 @@ typedef enum {
     PATHFIND,
     STORAGE,
     DEPOSIT
-} RobotState; //check 2
+} RobotState;
 
 static void AvoidDelay(void)
 {
@@ -57,7 +58,7 @@ static void AvoidDelay(void)
          i < AVOID_DELAY_COUNT;
          ++i) {
         __NOP();
-    }
+    } 
 }
 
 static void Send_Kobuki_Move(int16_t speed, int16_t radius)
