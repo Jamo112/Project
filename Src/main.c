@@ -51,10 +51,6 @@ typedef enum {
     DRIVE
 } RobotState;
 
-//nkyugyujgyulgy7uli
-
-
-
 static void AvoidDelay(void)
 {
     for (volatile uint32_t i = 0U;
