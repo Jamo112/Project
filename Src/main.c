@@ -50,9 +50,6 @@ typedef enum {
     DRIVE1,
     ORIENTATE2,
     DRIVE
-
-
-
 } RobotState;
 
 static void AvoidDelay(void)
