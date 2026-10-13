@@ -15,22 +15,22 @@
 #include "adc.h"
 #include "Ultrasonic.h"
 
-/* Button masks */
+// Button Mask
 #define BUTTON_0_START      0x01U
 #define BUTTON_1_STOP       0x02U
 #define BUTTON_2_ROTATE     0x04U
 
-/* Motor speeds */
+// motor speed limits
 #define SEARCH_SPEED_MM_S   ((int16_t)75)
 #define FORWARD_SPEED_MM_S  ((int16_t)100)
 #define REVERSE_SPEED_MM_S  ((int16_t)-100)
 #define ROTATE_SPEED_MM_S   ((int16_t)100)
 
-/* Approximate delay for the AVOID state.
- * Adjust this value if the rotation is too short or too long.
- */
+//Approximate delay for the AVOID state.
+//Adjust this value if the rotation is too short or too long.
 #define AVOID_DELAY_COUNT 300000U
 
+// FSM states
 typedef enum {
     IDLE = 0,
     SEARCH,
@@ -38,7 +38,11 @@ typedef enum {
     PATHFIND,
     STORAGE,
     DEPOSIT
-} RobotState; //check 2
+} RobotState;
+
+// Logic
+# define NULL 0
+# define TRUE 1
 
 /*
  * TODO:
@@ -74,252 +78,63 @@ static void Send_Kobuki_Move(int16_t speed, int16_t radius)
     Kobuki_Tx(payload, sizeof(payload));
 }
 
-int main(void)
-{
-    Kobuki_Typedef my_kobuki = {0};
-    US_Typedef ultrasonic_object = {0};
-
-    RobotState state = IDLE;
-
-    /*
-     * ORIENT bookkeeping.
-     *
-     * These variables track the logical progress of the search.
-     * They do NOT measure the robot's physical rotation.
-     */
-    bool orient_started = false;
-
-    /* Initialise drivers using the existing working sequence. */
-    UART_Init();
-    ADC_Init();
-    Ultrasonic_Init();
-
-    /* Start safely with the robot stopped. */
-    Send_Kobuki_Move(0, 0);
-
-    while (1)
-    {
-        /* Update sensor data. */
-        Kobuki_Read(&my_kobuki);
-        Ultrasonic_Detect(&ultrasonic_object);
-
-        /*
-         * GLOBAL STOP
-         *
-         * Button 1 takes priority over all normal state actions.
-         */
-        if ((my_kobuki.button & BUTTON_1_STOP) != 0U)
-        {
+int main ( void ) {
+    // Both of these only for testing purposes . Not required
+    volatile uint16_t ultrasonic_read;
+    volatile uint16_t adc_read;
+    Kobuki_Typedef kobuki;
+    US_Typedef object;
+    Kobuki_LED_Enum led_1, led_2;
+    UART_Init ();
+    ADC_Init ();
+    Ultrasonic_Init () ;
+    state = IDLE;
+    led_1 = OFF;
+    led_2 = OFF;
+    while (1) {
+        Kobuki_Read (&kobuki );
+        Ultrasonic_Detect (&object ) ;
+        // Both of these only for testing purposes . Not required
+        ultrasonic_read = Ultrasonic_Read();
+        adc_read = ADC_Read ( ADC_CHANNEL_1);
+        Kobuki_Update_LEDs ( led_1 , led_2);
+        // A TEST FSM
+        switch (state) {
+        case IDLE:
+            if (kobuki.button == BUTTON_0_START){
+            state = SEARCH;
+            led_1 = RED;
+            Kobuki_Rotate_Angle_Setpoint( kobuki.angle , 450) ;
+            // Kobuki_Drive_Distance_Setpoint ( kobuki .distance ,100) ;
+            }else if (kobuki.button == BUTTON_1_STOP) {
+            state = SEARCH;
+            led_1 = RED;
+            Kobuki_Rotate_Angle_Setpoint( kobuki.angle, 270) ;
+            // Kobuki_Drive_Distance_Setpoint ( kobuki .distance , -100) ;
+            }else if (kobuki.button == BUTTON_2_ROTATE) {
+            state = SEARCH;
+            led_1 = RED;
+            Kobuki_Rotate_Angle_Setpoint( kobuki.angle , 90);
+            // Kobuki_Drive_Distance_Setpoint ( kobuki .distance ,1000) ;
+            } else {
+                Kobuki_Drive(STOP) ;
+            }
+            break;
+        case SEARCH :
+            if ( ( kobuki.wheeldrop != NULL ) |(( kobuki.bumper + kobuki.cliff ) != NULL )|( kobuki.rotation_complete == TRUE ) |( kobuki.distance_complete == TRUE )) {
             state = IDLE;
-            orient_started = false;
-
-            Send_Kobuki_Move(0, 0);
-        }
-        else
-        {
-            /*
-             * FSM TRANSITIONS
-             */
-            switch (state)
-            {
-                case IDLE:
-
-                    /*
-                     * Remain stopped until Button 0 is pressed.
-                     */
-                    if ((my_kobuki.button & BUTTON_0_START) != 0U)
-                    {
-                        state = SEARCH;
-                        orient_started = false;
-                    }
-
-                    break;
-
-
-                case SEARCH:
-
-                    /*
-                     * Rotate until the ultrasonic sensor detects
-                     * a bollard or other object.
-                     */
-                    if (ultrasonic_object.detected != 0U)
-                    {
-                        Send_Kobuki_Move(0, 0);
-
-                        state = ORIENT;
-                        orient_started = false;
-                    }
-
-                    break;
-
-
-                case ORIENT:
-
-                    /*
-                     * TODO: Implement the 90-degree orientation check.
-                     *
-                     * Required behaviour:
-                     *
-                     * 1. Rotate the robot by 90 degrees.
-                     * 2. Determine when the turn has completed.
-                     * 3. Check the ultrasonic sensor in the new direction.
-                     *
-                     * If an object is detected:
-                     *     Begin another 90-degree turn.
-                     *
-                     * If no object is detected:
-                     *     Transition to PATHFIND.
-                     *
-                     * IMPORTANT:
-                     * Do not implement this using an arbitrary blocking
-                     * delay if sensor readings must be checked during
-                     * the rotation.
-                     */
-
-                    break;
-
-
-                case PATHFIND:
-
-                    /*
-                     * TODO: Implement pathfinding transitions.
-                     *
-                     * Define how the robot follows the route and
-                     * determine when it should enter STORAGE.
-                     */
-
-                    break;
-
-
-                case STORAGE:
-
-                    /*
-                     * TODO: Implement storage-related transitions.
-                     *
-                     * Define the conditions for moving to DEPOSIT
-                     * or returning to another state.
-                     */
-
-                    break;
-
-
-                case DEPOSIT:
-
-                    /*
-                     * TODO: Implement deposit-related transitions.
-                     *
-                     * Define what signals successful completion and
-                     * whether the robot should return to PATHFIND.
-                     */
-
-                    break;
-
-
-                default:
-
-                    /* Recover safely from an invalid state. */
-                    state = IDLE;
-                    orient_started = false;
-
-                    break;
+            led_1 = YELLOW;
+            }else {
+            Kobuki_Rotate_Angle( kobuki.angle);
+            // Kobuki_Drive_Distance ( kobuki . distance );
             }
-
-
-            /*
-             * STATE ACTIONS
-             */
-            switch (state)
-            {
-                case IDLE:
-
-                    /* Keep the robot stopped. */
-                    Send_Kobuki_Move(0, 0);
-
-                    break;
-
-
-                case SEARCH:
-
-                    /*
-                     * Rotate counter-clockwise while searching.
-                     *
-                     */
-                    Kobuki_Rotate(SEARCH_SPEED_MM_S);
-
-                    break;
-
-
-                case ORIENT:
-
-                    /*
-                     * TODO: Implement the physical 90-degree turn.
-                     *
-                     * Use the robot's odometry or gyro feedback to
-                     * determine when the turn is complete.
-                     *
-                     * Stop the robot before evaluating the next
-                     * direction.
-                     */
-
-                    Send_Kobuki_Move(0, 0);
-
-                    break;
-
-
-                case PATHFIND:
-
-                    /*
-                     * TODO: Implement pathfinding movement.
-                     *
-                     * FORWARD_SPEED_MM_S is available for use once
-                     * the required pathfinding behaviour is defined.
-                     */
-
-                    Send_Kobuki_Move(0, 0);
-
-                    break;
-
-
-                case STORAGE:
-
-                    /*
-                     * TODO: Implement storage behaviour.
-                     */
-
-                    Send_Kobuki_Move(0, 0);
-
-                    break;
-
-
-                case DEPOSIT:
-
-                    /*
-                     * TODO: Implement deposit behaviour.
-                     */
-
-                    Send_Kobuki_Move(0, 0);
-
-                    break;
-
-
-                default:
-
-                    /* Safe fallback. */
-                    Send_Kobuki_Move(0, 0);
-                    state = IDLE;
-
-                    break;
-            }
-        }
-
-        /*
-         * Small control-loop delay.
-         */
-        for (volatile uint32_t i = 0U;
-             i < 5000U;
-             ++i)
-        {
-            __NOP();
+            break ;
+        case OBSTACLE:
+            break;
+        case AVOID:
+            break;
+        case OBJECT:
+            break;
         }
     }
 }
