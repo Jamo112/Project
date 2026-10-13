@@ -134,8 +134,7 @@ void Kobuki_Read(Kobuki_Typedef *kobuki)
 void Kobuki_Drive ( int16_t speed ) {
     uint8_t speed_lsb = 0;
     uint8_t speed_msb = 0;
-
-    // Construct payload
+     // Construct payload
     uint8_t payload [] = {0x01, 0x04, 0x00, 0x00, 0x00, 0x00};
 
     // saturation to avoid going over speed limit
@@ -156,7 +155,6 @@ void Kobuki_Drive ( int16_t speed ) {
 void Kobuki_Rotate (int16_t speed) {
     uint8_t speed_lsb = 0;
     uint8_t speed_msb = 0;
-
     // Construct payload
     uint8_t payload[] = {0x01, 0x04, 0x00, 0x00, 0x01, 0x00};
 

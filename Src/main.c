@@ -44,11 +44,10 @@
 
 typedef enum {
     IDLE = 0,
-    INITIALISE,
-    ORIENTATE1,
-    DRIVE1,
-    ORIENTATE2,
-    DRIVE
+    SEARCH,
+    OBJECT,
+    OBSTACLE,
+    AVOID
 } RobotState;
 
 static void AvoidDelay(void)
