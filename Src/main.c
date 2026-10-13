@@ -46,9 +46,10 @@
 typedef enum {
     IDLE = 0,
     SEARCH,
-    OBJECT,
-    OBSTACLE,
-    AVOID
+    ORIENT,
+    PATHFIND,
+    STORAGE,
+    DEPOSIT
 } RobotState;
 
 //nkyugyujgyulgy7uli
