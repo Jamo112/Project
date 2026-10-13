@@ -50,7 +50,7 @@ typedef enum {
     STORAGE,
     DEPOSIT
 } RobotState;
-
+//checck
 static void AvoidDelay(void)
 {
     for (volatile uint32_t i = 0U;
