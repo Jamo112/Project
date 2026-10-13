@@ -32,53 +32,6 @@
 #define DRIVE_SPEED_MM_S    ((int16_t)100)
 #define ROTATE_SPEED_MM_S   ((int16_t)100)
 
-/* int main(void) {
-    UART_Init();
-
-    Kobuki_Typedef my_kobuki = {0};
-
-    // 0 = Stopped (Safe state), 1 = Running
-    uint8_t is_running = 0;
-    uint8_t is_rotating = 0;
-
-    while (1) {
-
-        // 1. Read the latest sensor data
-        Kobuki_Read(&my_kobuki);
-
-        // 2. Evaluate Start / Stop triggers
-        if (my_kobuki.button == 0x01) {
-            is_running = 1;
-            is_rotating = 0;
-        }
-        else if (my_kobuki.button == 0x04) {
-            is_rotating = 1;
-            is_running = 0;
-        }
-
-        // Stop triggers take priority over start triggers
-        if (my_kobuki.button == 0x02|| my_kobuki.bumper != 0) {
-            is_running = 0;
-            is_rotating = 0;
-        }
-
-        // 3. Command the motors based on the current state
-        if (is_running == 1) {
-            Kobuki_Drive(100);
-        }
-        else if (is_rotating == 1) {
-            Kobuki_Rotate(100);
-        }
-        else {
-            Kobuki_Drive(0);
-        }
-
-        // 4. Control loop delay
-        for (volatile int i = 0; i < 50000; i++);
-    }
-}
-    */
-
 /* Motor speeds in mm/s */
 #define SEARCH_SPEED_MM_S   ((int16_t)75)
 #define FORWARD_SPEED_MM_S  ((int16_t)100)
