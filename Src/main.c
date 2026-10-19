@@ -41,6 +41,8 @@
 #define TARGET_DISTANCE_350_MM  (350U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_400_MM  (400U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
+#define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
+#define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
 
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   17
@@ -112,12 +114,29 @@ bool centre_found = false;
 bool rot_started = false;
 
 // Pathfind variables
-uint8_t path_step = 0;
+typedef enum {
+    PATH_DRIVE_FIRST = 0,
+    PATH_TURN_90,
+    PATH_DRIVE_SECOND,
+    PATH_FACE_STORAGE,
+    PATH_COMPLETE
+} PathStage;
+
+static PathStage path_stage = PATH_DRIVE_FIRST;
 bool path_started = false;
 
 // Storage variables
 uint8_t storage_step = 0;
 bool storage_started = false;
+
+typedef enum {
+    DEPOSIT_SEARCH = 0,
+    DEPOSIT_CENTRE,
+    DEPOSIT_APPROACH,
+    DEPOSIT_COMPLETE
+} DepositStage;
+
+static DepositStage deposit_stage = DEPOSIT_SEARCH;
 
 
 /* ===========================================================================
@@ -192,7 +211,11 @@ static void Orient_Reset(void) {
 static void Orient_Fail(void) {
     Orient_Stop();
     Orient_Reset();
-    state = SEARCH;
+    if (state == DEPOSIT) {
+        deposit_stage = DEPOSIT_SEARCH;
+    } else {
+        state = SEARCH;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -448,8 +471,10 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case PATHFIND:
+            switch (path_stage) {
+            case PATH_DRIVE_FIRST:
+            case PATH_DRIVE_SECOND:
             // Drive forward 1200mm
-            if (path_step == 0 || path_step == 2) {
                 if (!path_started) {
                     Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
                     kobuki.distance_complete = 0;
@@ -461,36 +486,50 @@ int main ( void ) {
                 if (kobuki.distance_complete) {
                     Kobuki_Drive(STOP);
                     path_started = false;
-                    path_step++;
+                    path_stage = (path_stage == PATH_DRIVE_FIRST)
+                        ? PATH_TURN_90 : PATH_FACE_STORAGE;
                 }
-            } else if (path_step == 1) {
+                break;
+
+            case PATH_TURN_90:
                 // 90 degree rotation depending on the course direction (left or right)
                 if (course_direction == Course_Left) {
                     if (Rotate_Angle(&kobuki, -90)) {
-                        path_step++;
+                        path_stage = PATH_DRIVE_SECOND;
                     }
                 } else if (course_direction == Course_Right) {
                     if (Rotate_Angle(&kobuki, 90)) {
-                        path_step++;
+                        path_stage = PATH_DRIVE_SECOND;
                     }
                 }
-            } else if (path_step == 3) {
+                break;
+
+            case PATH_FACE_STORAGE:
                 // 135 degree rotation to face storage area
                 if (course_direction == Course_Left) {
                     if (Rotate_Angle(&kobuki, -135)) {
-                        path_step++;
+                        path_stage = PATH_COMPLETE;
                     }
                 } else if (course_direction == Course_Right) {
                     if (Rotate_Angle(&kobuki, 135)) {
-                        path_step++;
+                        path_stage = PATH_COMPLETE;
                     }
                 }
-            } else if (path_step == 4) {
+                break;
+
+            case PATH_COMPLETE:
                 // Finished path
                 Kobuki_Drive(STOP);
-                path_step = 0;
+                path_stage = PATH_DRIVE_FIRST;
                 path_started = false;
                 state = STORAGE;
+                break;
+
+            default:
+                Kobuki_Drive(STOP);
+                path_stage = PATH_DRIVE_FIRST;
+                path_started = false;
+                break;
             }
             break;
 
@@ -516,12 +555,57 @@ int main ( void ) {
             else if (storage_step == 1) {
                 // Finished entering storage
                 storage_step = 0;
+                deposit_stage = DEPOSIT_SEARCH;
+                Orient_Reset();
                 state = DEPOSIT;
             }
 
             break;
         // ---------------------------------------------------------------
         case DEPOSIT:
+            switch (deposit_stage) {
+                case DEPOSIT_SEARCH:
+                    // Turn until the bollard enters the ultrasonic beam.
+                    if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM)) {
+                        Orient_Stop();
+                        Orient_Reset();
+                        deposit_stage = DEPOSIT_CENTRE;
+                    } else {
+                        Kobuki_Rotate(SEARCH_SPEED_MM_S);
+                    }
+                    break;
+
+                case DEPOSIT_CENTRE:
+                    Bollard_centre(&kobuki, &object);
+                    if (centre_found) {
+                        deposit_stage = DEPOSIT_APPROACH;
+                    }
+                    break;
+
+                case DEPOSIT_APPROACH:
+                    Ultrasonic_Detect(&object);
+                    if (object.range_mm <= TARGET_DISTANCE_100_MM) {
+                        Kobuki_Drive(STOP);
+                        deposit_stage = DEPOSIT_COMPLETE;
+                    } else if (object.range_mm > TARGET_DISTANCE_350_MM) {
+                        // Centre again if the target is lost.
+                        Orient_Stop();
+                        Orient_Reset();
+                        deposit_stage = DEPOSIT_SEARCH;
+                    } else {
+                        Kobuki_Drive(DEPOSIT_APPROACH_SPEED_MM_S);
+                    }
+                    break;
+
+                case DEPOSIT_COMPLETE:
+                    Kobuki_Drive(STOP);
+                    state = IDLE;
+                    break;
+
+                default:
+                    Kobuki_Drive(STOP);
+                    break;
+            }
             break;
         }
     }
