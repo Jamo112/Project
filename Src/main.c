@@ -55,6 +55,14 @@ typedef enum {
     DEPOSIT
 } RobotState;
 
+typedef enum {
+    Course_Undefined = 0,
+    Course_Left,
+    Course_Right
+} CourseDirection;
+
+CourseDirection course_direction = Course_Undefined;
+
 // Logic
 # define NULL 0
 # define TRUE 1
@@ -221,6 +229,17 @@ int main ( void ) {
 
             break;
         case PATHFIND:
+            if (course_direction == Course_Right){
+                Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
+                Kobuki_Drive_Distance(kobuki.distance);
+                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, 900);
+                Kobuki_Rotate_Distance(kobuki.distance);
+            } else if (course_direction == Course_Left){
+                Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
+                Kobuki_Drive_Distance(kobuki.distance);
+                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, -900);
+                Kobuki_Rotate_Distance(kobuki.distance);
+            }
             break;
         case STORAGE:
             break;
