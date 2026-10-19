@@ -38,6 +38,13 @@
 
 #define SEARCH_ROTATION_INCREMENT_DEG 17
 
+// ORIENT (bollard alignment) tuning ///////////////////////////////////
+#define ORIENT_SWEEP_SPEED_MM_S   ((int16_t)-50)  // slow so the ultrasonic keeps up
+#define ORIENT_CONFIRM_SAMPLES    3U              // consecutive readings to confirm an edge
+#define ORIENT_FIND_LIMIT_CDEG    4500L           // max sweep (0.01 deg) to find left edge (45 deg)
+#define ORIENT_SPAN_LIMIT_CDEG    9000L           // max object width (90 deg) - wider = wall, not bollard
+
+
 // FSM states
 typedef enum {
     IDLE = 0,
@@ -66,33 +73,50 @@ bool DETECT_BOLLARD(US_Typedef *object, uint16_t distance)
     return false;  // No object detected within the target distance
 }
 
+static void Rotate_Reset(void)
+{
+    rot_started = false;
+}
+ 
 bool Rotate_Angle(Kobuki_Typedef *kobuki, int16_t angle)
 {
-    static bool started = false;
-    static int16_t target_angle = 0;
-
     // Set the target once when a new rotation starts
-    if (!started)
+    if (!rot_started)
     {
         Kobuki_Rotate_Angle_Setpoint(kobuki->angle, angle);
-        target_angle = angle;
-        started = true;
+        // kobuki->rotation_complete is only refreshed in Kobuki_Read(), so it still
+        // holds the PREVIOUS rotation's result here. Clear our copy or this call
+        // would report "finished" straight away on every rotation after the first.
+        kobuki->rotation_complete = 0;
+        rot_started = true;
+        return false;
     }
-
+ 
     // Keep rotating towards the target
     Kobuki_Rotate_Angle(kobuki->angle);
-
+ 
     // Check if the rotation has finished
     if (kobuki->rotation_complete)
     {
-        started = false;
+        Kobuki_Drive(STOP);
+        rot_started = false;
         return true;
     }
-
+ 
     return false;
 }
+ 
 /////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////
+
+// ORIENT sub-FSM: centre the robot on a bollard ///////////////////////////
+// Entered just after SEARCH has swept past the bollard's edge. Sweeps CW across
+// the bollard, records the heading where it enters the beam (left edge) and where
+// it leaves (right edge), then turns to the average of the two (the centreline).
+
+
+
+
 
 static void Send_Kobuki_Move(int16_t speed, int16_t radius)
 {
@@ -151,19 +175,10 @@ int main ( void ) {
 
 
         case SEARCH:
-
+ 
             led_1 = RED;
             led_2 = OFF;
-
-            // Safety check
-            if (kobuki.wheeldrop != 0)
-            {
-                rotating = false;
-                found_bollard = false;
-                state = IDLE;
-                break;
-            }
-
+ 
             // If currently rotating, continue until rotation completes
             if (rotating)
             {
@@ -171,31 +186,34 @@ int main ( void ) {
                 {
                     rotating = false;
                 }
-
+ 
                 break;
             }
-
+ 
             // Only check the sensor when stationary
-            if (SEARCH_BOLLARD(&object, TARGET_DISTANCE_350_MM))
+            if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM))
             {
                 // A bollard has been found
                 found_bollard = true;
             }
             else if (found_bollard)
             {
-                // Previously detected a bollard, now facing an empty space
+                // Previously detected a bollard, now facing an empty space:
+                // we are just past its edge, so hand over to ORIENT
                 Kobuki_Drive(STOP);
+                rotating = false;
+                found_bollard = false;
+                Rotate_Reset();
+                Orient_Reset();
                 state = ORIENT;
                 break;
             }
-
+ 
             // Continue scanning in small angular increments
             rotating = true;
-
-            // Start the next rotation
-            Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG);
-
+            Rotate_Reset();
             break;
+ 
 
         case ORIENT:
             if    
