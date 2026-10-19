@@ -115,6 +115,10 @@ bool rot_started = false;
 uint8_t path_step = 0;
 bool path_started = false;
 
+// Storage variables
+uint8_t storage_step = 0;
+bool storage_started = false;
+
 
 /* ===========================================================================
  * CUSTOM FUNCTIONS
@@ -494,8 +498,30 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case STORAGE:
-            break;
 
+            if (storage_step == 0) {
+                // Drive into the storage area
+                if (!storage_started) {
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 500);
+                    kobuki.distance_complete = 0;
+                    storage_started = true;
+                }
+
+                Kobuki_Drive_Distance(kobuki.distance);
+
+                if (kobuki.distance_complete) {
+                    Kobuki_Drive(STOP);
+                    storage_started = false;
+                    storage_step = 1;
+                }
+            }
+            else if (storage_step == 1) {
+                // Finished entering storage
+                storage_step = 0;
+                state = DEPOSIT;
+            }
+
+            break;
         // ---------------------------------------------------------------
         case DEPOSIT:
             break;
