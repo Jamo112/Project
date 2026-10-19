@@ -55,18 +55,19 @@ typedef enum {
     DEPOSIT
 } RobotState;
 
+RobotState state = IDLE;
+
 typedef enum {
     Course_Undefined = 0,
     Course_Left,
     Course_Right
 } CourseDirection;
 
-typedef enum {
-    First = 0,
-    Second
-}PathfindState;
-
 CourseDirection course_direction = Course_Undefined;
+
+// Pathfind variables
+uint8_t path_step = 0;
+bool path_started = false;
 
 // Logic
 # define NULL 0
@@ -226,16 +227,60 @@ int main ( void ) {
 
             break;
         case PATHFIND:
-            if (course_direction == Course_Right){
-                Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
+            // Drive forward 1200mm
+            if (path_step == 0 || path_step == 2) {
+
+                if (!path_started) {
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
+                    kobuki.distance_complete = 0;
+                    path_started = true;
+                }
+
                 Kobuki_Drive_Distance(kobuki.distance);
-                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, -90);
-                Kobuki_Rotate_Distance(kobuki.distance);
-            } else if (course_direction == Course_Left){
-                Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
-                Kobuki_Drive_Distance(kobuki.distance);
-                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, 90);
-                Kobuki_Rotate_Distance(kobuki.distance);
+
+                if (kobuki.distance_complete) {
+                    Kobuki_Drive(STOP);
+                    path_started = false;
+                    path_step++;
+                }
+            }
+
+            // 90 degree rotation depennding on the course direction (left or right)
+            else if (path_step == 1) {
+
+                if (course_direction == Course_Left) {
+                    if (Rotate_Angle(&kobuki, -90)) {
+                        path_step++;
+                    }
+                }
+                else if (course_direction == Course_Right) {
+                    if (Rotate_Angle(&kobuki, 90)) {
+                        path_step++;
+                    }
+                }
+            }
+
+            // 135 degree rotation to face storage area
+            else if (path_step == 3) {
+
+                if (course_direction == Course_Left) {
+                    if (Rotate_Angle(&kobuki, -135)) {
+                        path_step++;
+                    }
+                }
+                else if (course_direction == Course_Right) {
+                    if (Rotate_Angle(&kobuki, 135)) {
+                        path_step++;
+                    }
+                }
+            }
+
+            // Finished path
+            else if (path_step == 4) {
+                Kobuki_Drive(STOP);
+                path_step = 0;
+                path_started = false;
+                state = STORAGE;
             }
             break;
         case STORAGE:
