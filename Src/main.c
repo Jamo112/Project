@@ -16,54 +16,54 @@
 #include "adc.h"
 #include "Ultrasonic.h"
 
+
+/* ===========================================================================
+ * DEFINES
+ * =========================================================================*/
+
 // Button Mask
 #define BUTTON_0_START      0x01U
 #define BUTTON_1_STOP       0x02U
 #define BUTTON_2_ROTATE     0x04U
 
-// motor speed limits
+// Motor speed limits
 #define SEARCH_SPEED_MM_S   ((int16_t)75)
 #define FORWARD_SPEED_MM_S  ((int16_t)100)
 #define REVERSE_SPEED_MM_S  ((int16_t)-100)
 #define ROTATE_SPEED_MM_S   ((int16_t)100)
 
-//Approximate delay for the AVOID state.
-//Adjust this value if the rotation is too short or too long.
-#define AVOID_DELAY_COUNT 300000U
+// Approximate delay for the AVOID state.
+// Adjust this value if the rotation is too short or too long.
+#define AVOID_DELAY_COUNT   300000U
 
-//Common distances
-#define SENSOR_OFFSET_MM        200U // A value that allows for easy adjustments of offset
+// Common distances
+#define SENSOR_OFFSET_MM        200U    // A value that allows for easy adjustments of offset
 #define TARGET_DISTANCE_350_MM  (350U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_400_MM  (400U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
 
-#define SEARCH_ROTATION_INCREMENT_DEG 17
+// SEARCH tuning
+#define SEARCH_ROTATION_INCREMENT_DEG   17
 
-// ORIENT (bollard alignment) tuning ///////////////////////////////////
-#define ORIENT_SWEEP_SPEED_MM_S   ((int16_t)-50)  // slow so the ultrasonic keeps up
-#define ORIENT_CONFIRM_SAMPLES    3U              // consecutive readings to confirm an edge
-#define ORIENT_FIND_LIMIT_CDEG    4500L           // max sweep (0.01 deg) to find left edge (45 deg)
-#define ORIENT_SPAN_LIMIT_CDEG    9000L           // max object width (90 deg) - wider = wall, not bollard
+// ORIENT (bollard centring) tuning
+// Gyro angle increases CCW: a NEGATIVE step is CW, a POSITIVE step is CCW.
+// If your robot turns the wrong way, flip the signs of the steps in Bollard_centre().
+#define ORIENT_STEP_DEG           5       // each sweep step (deg)
+#define ORIENT_CONFIRM_SAMPLES    3U      // consecutive readings to confirm an edge
+#define ORIENT_FIND_LIMIT_CDEG    4500L   // max sweep to re-enter the bollard (0.01 deg = 45 deg)
+#define ORIENT_SPAN_LIMIT_CDEG    9000L   // max object width (0.01 deg = 90 deg), wider = wall
+#define ORIENT_MIN_SPAN_CDEG      300L    // narrower than 3 deg = noise
 
-///// FOR BOLLARD CENTRE
-typedef enum
-{
-    ORIENT_FIND_EDGE,
-    ORIENT_FIND_EXIT,
-    ORIENT_RETURN_CENTRE,
-    ORIENT_COMPLETE
-} OrientStage;
+// Logic
+# define NULL 0
+# define TRUE 1
 
-static OrientStage orient_stage = ORIENT_FIND_EDGE;
 
-static int16_t theta_left = 0;
-static int16_t theta_right = 0;
-static int16_t theta_target = 0;
+/* ===========================================================================
+ * TYPES AND GLOBAL VARIABLES
+ * =========================================================================*/
 
-static uint8_t orient_samples = 0;
-static bool orient_rotating = false;
-
-// FSM states
+// Main FSM states
 typedef enum {
     IDLE = 0,
     SEARCH,
@@ -75,6 +75,7 @@ typedef enum {
 
 RobotState state = IDLE;
 
+// Which way the course goes
 typedef enum {
     Course_Undefined = 0,
     Course_Left,
@@ -83,127 +84,230 @@ typedef enum {
 
 CourseDirection course_direction = Course_Undefined;
 
+// Bollard centring sub-FSM stages
+typedef enum {
+    ORIENT_FIND_EDGE,       // step CW until the bollard is lost       -> theta_right
+    ORIENT_REENTER,         // step CCW until the bollard is seen again
+    ORIENT_FIND_EXIT,       // keep stepping CCW until it is lost      -> theta_left
+    ORIENT_RETURN_CENTRE,   // turn to the middle of the two edges
+    ORIENT_COMPLETE
+} OrientStage;
+
+static OrientStage orient_stage = ORIENT_FIND_EDGE;
+
+// Edge headings are CUMULATIVE angles in 0.01 deg (no +/-180 wrap problems)
+static int32_t theta_right  = 0;    // CW edge
+static int32_t theta_left   = 0;    // CCW edge
+static int32_t theta_target = 0;    // centreline = (theta_left + theta_right) / 2
+
+static int16_t orient_last_angle = 0;   // previous gyro reading
+static int32_t orient_cum        = 0;   // heading change since ORIENT started
+static int32_t orient_edge_cand  = 0;   // heading at the first "lost" sample
+static uint8_t orient_samples    = 0;
+static bool    orient_first      = true;
+
+bool centre_found = false;
+
+// Rotation state
+bool rot_started = false;
+
 // Pathfind variables
 uint8_t path_step = 0;
 bool path_started = false;
 
-// Logic
-# define NULL 0
-# define TRUE 1
 
-// CUSTOM FUNCTIONS //////////////////////////////////////////
-/////////////////////////////////////////////////////////////
-bool DETECT_BOLLARD(US_Typedef *object, uint16_t distance)
-{
+/* ===========================================================================
+ * CUSTOM FUNCTIONS
+ * =========================================================================*/
+
+// ---------------------------------------------------------------------------
+// DETECT_BOLLARD: refresh the ultrasonic reading, true if within distance
+// ---------------------------------------------------------------------------
+bool DETECT_BOLLARD(US_Typedef *object, uint16_t distance) {
     Ultrasonic_Detect(object);  // Update ultrasonic measurement
 
-    if (object->range_mm <= distance)
-    {
+    if (object->range_mm <= distance) {
         return true;  // Object detected within the target distance
     }
 
     return false;  // No object detected within the target distance
 }
 
-bool rot_started = false;
-static void Rotate_Reset(void)
-{
+// ---------------------------------------------------------------------------
+// Rotate helpers. Rotate_Angle() is non-blocking: call it every loop until
+// it returns true.
+// ---------------------------------------------------------------------------
+static void Rotate_Reset(void) {
     rot_started = false;
 }
 
-bool centre_found = false; 
-static void Orient_Reset(void)
-{
-    centre_found = false;
-}
- 
-bool Rotate_Angle(Kobuki_Typedef *kobuki, int16_t angle)
-{
+bool Rotate_Angle(Kobuki_Typedef *kobuki, int16_t angle) {
     // Set the target once when a new rotation starts
-    if (!rot_started)
-    {
+    if (!rot_started) {
         Kobuki_Rotate_Angle_Setpoint(kobuki->angle, angle);
-        kobuki->rotation_complete = 0;
+        kobuki->rotation_complete = 0;  // clear stale flag from the last rotation
         rot_started = true;
         return false;
     }
- 
+
     // Keep rotating towards the target
     Kobuki_Rotate_Angle(kobuki->angle);
- 
+
     // Check if the rotation has finished
-    if (kobuki->rotation_complete)
-    {
+    if (kobuki->rotation_complete) {
         Kobuki_Drive(STOP);
         rot_started = false;
         return true;
     }
- 
+
     return false;
 }
- 
-void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object)
-{
-    switch (orient_stage)
-    {
+
+// ---------------------------------------------------------------------------
+// ORIENT helpers
+// ---------------------------------------------------------------------------
+
+// Cancel any rotation step that is still in flight
+static void Orient_Stop(void) {
+    Kobuki_Drive(STOP);
+    Rotate_Reset();
+}
+
+// Reset the WHOLE centring sub-FSM (otherwise a second run starts in COMPLETE)
+static void Orient_Reset(void) {
+    centre_found     = false;
+    course_direction = Course_Undefined;
+    orient_stage     = ORIENT_FIND_EDGE;
+    orient_samples   = 0;
+    orient_cum       = 0;
+    orient_first     = true;
+    Rotate_Reset();
+}
+
+// Lost the bollard / bad reading: stop and go back to SEARCH
+static void Orient_Fail(void) {
+    Orient_Stop();
+    Orient_Reset();
+    state = SEARCH;
+}
+
+// ---------------------------------------------------------------------------
+// Bollard_centre: centre the robot on the bollard.
+// Entered just after SEARCH first sees the bollard, so we start inside the beam.
+//   1) step CW until the bollard is lost          -> theta_right
+//   2) reverse, step CCW until it is seen again
+//   3) keep going CCW until it is lost again      -> theta_left
+//   4) turn to theta_target = (theta_left + theta_right) / 2
+// Each edge heading is latched at the FIRST sample of the lost run, so the
+// debounce delay does not bias it. Sets centre_found when finished.
+// ---------------------------------------------------------------------------
+void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
+    int32_t delta;
+    bool    seen = DETECT_BOLLARD(object, TARGET_DISTANCE_350_MM);
+
+    // First call after a reset: take a reference heading
+    if (orient_first) {
+        orient_last_angle = kobuki->angle;
+        orient_cum        = 0;
+        orient_samples    = 0;
+        orient_first      = false;
+    }
+
+    // Accumulate the heading change (gyro is 0.01 deg and wraps at +/-18000)
+    delta = (int32_t)kobuki->angle - (int32_t)orient_last_angle;
+    if (delta > 18000) {
+        delta -= 36000;
+    } else if (delta < -18000) {
+        delta += 36000;
+    }
+    orient_cum += delta;
+    orient_last_angle = kobuki->angle;
+
+    switch (orient_stage) {
+        // -------- 1) CW until the bollard is lost --------
         case ORIENT_FIND_EDGE:
-            if (!orient_rotating)
-            {
-                Rotate_Reset();
-                orient_rotating = true;
-            }
+            Rotate_Angle(kobuki, -ORIENT_STEP_DEG);
 
-            if (Rotate_Angle(kobuki, -5))
-                orient_rotating = false;
-
-            if (!DETECT_BOLLARD(object, TARGET_DISTANCE_350_MM))
-            {
+            if (!seen) {
+                if (orient_samples == 0U) {
+                    orient_edge_cand = orient_cum;      // first lost sample
+                }
                 orient_samples++;
 
-                if (orient_samples >= ORIENT_CONFIRM_SAMPLES)
-                {
-                    theta_left = kobuki->angle / 100.0;
+                if (orient_samples >= ORIENT_CONFIRM_SAMPLES) {
+                    theta_right    = orient_edge_cand;
                     orient_samples = 0;
-                    orient_stage = ORIENT_FIND_EXIT;
+                    Orient_Stop();                      // cancel the CW step in flight
+                    orient_stage   = ORIENT_REENTER;
                 }
-            }
-            else
+            } else {
                 orient_samples = 0;
+            }
 
+            // Never lost it: too wide to be a bollard
+            if ((-orient_cum) > ORIENT_SPAN_LIMIT_CDEG) {
+                Orient_Fail();
+            }
             break;
 
+        // -------- 2) reverse until the bollard is back in the beam --------
+        case ORIENT_REENTER:
+            Rotate_Angle(kobuki, ORIENT_STEP_DEG);
+
+            if (seen) {
+                orient_samples++;
+
+                if (orient_samples >= ORIENT_CONFIRM_SAMPLES) {
+                    orient_samples = 0;
+                    orient_stage   = ORIENT_FIND_EXIT;  // same direction, keep going
+                }
+            } else {
+                orient_samples = 0;
+            }
+
+            // Lost it for good
+            if ((orient_cum - theta_right) > ORIENT_FIND_LIMIT_CDEG) {
+                Orient_Fail();
+            }
+            break;
+
+        // -------- 3) CCW until the bollard is lost again --------
         case ORIENT_FIND_EXIT:
-            if (!orient_rotating)
-            {
-                Rotate_Reset();
-                orient_rotating = true;
-            }
+            Rotate_Angle(kobuki, ORIENT_STEP_DEG);
 
-            if (Rotate_Angle(kobuki, -5))
-                orient_rotating = false;
-
-            if (DETECT_BOLLARD(object, TARGET_DISTANCE_350_MM))
-            {
+            if (!seen) {
+                if (orient_samples == 0U) {
+                    orient_edge_cand = orient_cum;      // first lost sample
+                }
                 orient_samples++;
 
-                if (orient_samples >= ORIENT_CONFIRM_SAMPLES)
-                {
-                    theta_right = kobuki->angle / 100.0;
+                if (orient_samples >= ORIENT_CONFIRM_SAMPLES) {
+                    theta_left     = orient_edge_cand;
                     orient_samples = 0;
-                    theta_target = (theta_left + theta_right) / 2.0;
+                    Orient_Stop();
 
-                    Rotate_Reset();
-                    orient_stage = ORIENT_RETURN_CENTRE;
+                    if ((theta_left - theta_right) < ORIENT_MIN_SPAN_CDEG) {
+                        Orient_Fail();                  // noise spike
+                    } else {
+                        theta_target = (theta_left + theta_right) / 2;
+                        orient_stage = ORIENT_RETURN_CENTRE;
+                    }
                 }
-            }
-            else
+            } else {
                 orient_samples = 0;
+            }
 
+            // Too wide to be a bollard (wall?)
+            if ((orient_stage == ORIENT_FIND_EXIT) &&
+                ((orient_cum - theta_right) > ORIENT_SPAN_LIMIT_CDEG)) {
+                Orient_Fail();
+            }
             break;
 
+        // -------- 4) turn to the centreline --------
         case ORIENT_RETURN_CENTRE:
-            if (Rotate_Angle(kobuki, (int16_t)(theta_target - kobuki->angle / 100.0)))
-            {
+            // Angle to turn is evaluated every call, but only used when the rotation starts
+            if (Rotate_Angle(kobuki, (int16_t)((theta_target - orient_cum) / 100))) {
                 centre_found = true;
                 orient_stage = ORIENT_COMPLETE;
             }
@@ -212,11 +316,14 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object)
         case ORIENT_COMPLETE:
             centre_found = true;
             break;
+
+        default:
+            orient_stage = ORIENT_FIND_EDGE;
+            break;
     }
 }
 
-static void Send_Kobuki_Move(int16_t speed, int16_t radius)
-{
+static void Send_Kobuki_Move(int16_t speed, int16_t radius) {
     uint8_t payload[6];
 
     payload[0] = 0x01U;
@@ -231,16 +338,21 @@ static void Send_Kobuki_Move(int16_t speed, int16_t radius)
     Kobuki_Tx(payload, sizeof(payload));
 }
 
+
+/* ===========================================================================
+ * MAIN
+ * =========================================================================*/
 int main ( void ) {
     // Both of these only for testing purposes . Not required
     volatile uint16_t ultrasonic_read;
     volatile uint16_t adc_read;
-    bool search_done = false; 
+    bool search_done = false;
     bool rotating = false;
     bool found_bollard = false;
     Kobuki_Typedef kobuki;
     US_Typedef object;
     Kobuki_LED_Enum led_1, led_2;
+
     UART_Init ();
     ADC_Init ();
     Ultrasonic_Init () ;
@@ -256,39 +368,38 @@ int main ( void ) {
         ultrasonic_read = Ultrasonic_Read();
         adc_read = ADC_Read ( ADC_CHANNEL_1);
         Kobuki_Update_LEDs ( led_1 , led_2);
+
         // A TEST FSM
         switch (state) {
 
-
+        // ---------------------------------------------------------------
         case IDLE:
             Kobuki_Drive(STOP);
 
             led_1 = GREEN;
             led_2 = GREEN;
-            if (kobuki.button == BUTTON_0_START){
-            state = SEARCH;
+
+            if (kobuki.button == BUTTON_0_START) {
+                state = SEARCH;
             }
             break;
 
-
+        // ---------------------------------------------------------------
         case SEARCH:
- 
             led_1 = RED;
             led_2 = OFF;
- 
-             // If currently rotating, continue until rotation completes
-            if (rotating)
-            {
-                if (Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG))
-                {
+
+            // If currently rotating, continue until rotation completes
+            if (rotating) {
+                if (Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG)) {
                     rotating = false;
                 }
- 
+
                 break;
             }
-                // Only check the sensor when stationary
-            if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM))
-            {
+
+            // Only check the sensor when stationary
+            if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM)) {
                 // Bollard found: hand straight over to ORIENT to centre on it
                 Kobuki_Drive(STOP);
                 rotating = false;
@@ -297,36 +408,46 @@ int main ( void ) {
                 state = ORIENT;
                 break;
             }
- 
+
             // Nothing in range: rotate another 17 deg and look again
             rotating = true;
             Rotate_Reset();
             break;
- 
 
+        // ---------------------------------------------------------------
         case ORIENT:
-            if (!centre_found){
-                Bollard_centre();
-            }
-            else {
-                if (DETECT_BOLLARD(&object, TARGET_DISTANCE_150_MM))
-                Rotate_Angle(&kobuki, -90);
-                course_direction = Course_Left;
-                State = PATHFIND;
-             
-                else {
-                Rotate_Angle(&Kobuki, 90);
-                course_direction = Course_Right;
-                State = PATHFIND;
+            if (!centre_found) {
+                // Step 1: centre on the bollard
+                Bollard_centre(&kobuki, &object);
+            } else {
+                // Step 2: decide the course ONCE, now that we are centred and stationary
+                if (course_direction == Course_Undefined) {
+                    if (DETECT_BOLLARD(&object, TARGET_DISTANCE_150_MM)) {
+                        course_direction = Course_Left;
+                    } else {
+                        course_direction = Course_Right;
+                    }
+
+                    Rotate_Reset();
+                }
+
+                // Step 3: rotate 90 deg (called every loop until it finishes)
+                if (course_direction == Course_Left) {
+                    if (Rotate_Angle(&kobuki, -90)) {
+                        state = PATHFIND;
+                    }
+                } else {
+                    if (Rotate_Angle(&kobuki, 90)) {
+                        state = PATHFIND;
+                    }
                 }
             }
             break;
-            
 
+        // ---------------------------------------------------------------
         case PATHFIND:
             // Drive forward 1200mm
             if (path_step == 0 || path_step == 2) {
-
                 if (!path_started) {
                     Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
                     kobuki.distance_complete = 0;
@@ -340,48 +461,42 @@ int main ( void ) {
                     path_started = false;
                     path_step++;
                 }
-            }
-
-            // 90 degree rotation depennding on the course direction (left or right)
-            else if (path_step == 1) {
-
+            } else if (path_step == 1) {
+                // 90 degree rotation depending on the course direction (left or right)
                 if (course_direction == Course_Left) {
                     if (Rotate_Angle(&kobuki, -90)) {
                         path_step++;
                     }
-                }
-                else if (course_direction == Course_Right) {
+                } else if (course_direction == Course_Right) {
                     if (Rotate_Angle(&kobuki, 90)) {
                         path_step++;
                     }
                 }
-            }
-
-            // 135 degree rotation to face storage area
-            else if (path_step == 3) {
-
+            } else if (path_step == 3) {
+                // 135 degree rotation to face storage area
                 if (course_direction == Course_Left) {
                     if (Rotate_Angle(&kobuki, -135)) {
                         path_step++;
                     }
-                }
-                else if (course_direction == Course_Right) {
+                } else if (course_direction == Course_Right) {
                     if (Rotate_Angle(&kobuki, 135)) {
                         path_step++;
                     }
                 }
-            }
-
-            // Finished path
-            else if (path_step == 4) {
+            } else if (path_step == 4) {
+                // Finished path
                 Kobuki_Drive(STOP);
                 path_step = 0;
                 path_started = false;
                 state = STORAGE;
             }
             break;
+
+        // ---------------------------------------------------------------
         case STORAGE:
             break;
+
+        // ---------------------------------------------------------------
         case DEPOSIT:
             break;
         }
