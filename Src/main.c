@@ -187,7 +187,7 @@ int main ( void ) {
             led_1 = RED;
             led_2 = OFF;
  
-            // If currently rotating, continue until rotation completes
+             // If currently rotating, continue until rotation completes
             if (rotating)
             {
                 if (Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG))
@@ -197,29 +197,23 @@ int main ( void ) {
  
                 break;
             }
- 
-            // Only check the sensor when stationary
+                // Only check the sensor when stationary
             if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM))
             {
-                // A bollard has been found
-                found_bollard = true;
-            }
-            else if (found_bollard)
-            {
-                // Previously detected a bollard, now facing an empty space:
-                // we are just past its edge, so hand over to ORIENT
+                // Bollard found: hand straight over to ORIENT to centre on it
                 Kobuki_Drive(STOP);
                 rotating = false;
-                found_bollard = false;
                 Rotate_Reset();
                 Orient_Reset();
                 state = ORIENT;
                 break;
             }
  
-            // Continue scanning in small angular increments
+            // Nothing in range: rotate another 17 deg and look again
             rotating = true;
             Rotate_Reset();
+            break;
+ 
             break;
  
 
