@@ -140,7 +140,7 @@ int main ( void ) {
 
 
         case IDLE:
-            Kuboki_Drive(STOP);
+            Kobuki_Drive(STOP);
 
             led_1 = GREEN;
             led_2 = GREEN;
@@ -150,7 +150,7 @@ int main ( void ) {
             break;
 
 
-        ccase SEARCH:
+        case SEARCH:
 
             led_1 = RED;
             led_2 = OFF;
