@@ -202,8 +202,6 @@ static void Orient_Fail(void) {
 //   2) reverse, step CCW until it is seen again
 //   3) keep going CCW until it is lost again      -> theta_left
 //   4) turn to theta_target = (theta_left + theta_right) / 2
-// Each edge heading is latched at the FIRST sample of the lost run, so the
-// debounce delay does not bias it. Sets centre_found when finished.
 // ---------------------------------------------------------------------------
 void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
     int32_t delta;
