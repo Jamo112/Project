@@ -219,8 +219,6 @@ int main ( void ) {
             Rotate_Reset();
             break;
  
-            break;
- 
 
         case ORIENT:
             if    
