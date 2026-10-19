@@ -502,7 +502,7 @@ int main ( void ) {
             if (storage_step == 0) {
                 // Drive into the storage area
                 if (!storage_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 500);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 800);
                     kobuki.distance_complete = 0;
                     storage_started = true;
                 }
