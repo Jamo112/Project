@@ -61,6 +61,11 @@ typedef enum {
     Course_Right
 } CourseDirection;
 
+typedef enum {
+    First = 0,
+    Second
+}PathfindState;
+
 CourseDirection course_direction = Course_Undefined;
 
 // Logic
@@ -232,12 +237,12 @@ int main ( void ) {
             if (course_direction == Course_Right){
                 Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
                 Kobuki_Drive_Distance(kobuki.distance);
-                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, 900);
+                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, -90);
                 Kobuki_Rotate_Distance(kobuki.distance);
             } else if (course_direction == Course_Left){
                 Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
                 Kobuki_Drive_Distance(kobuki.distance);
-                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, -900);
+                Kobuki_Rotate_Distance_Setpoint(kobuki.distance, 90);
                 Kobuki_Rotate_Distance(kobuki.distance);
             }
             break;
