@@ -481,6 +481,7 @@ int main ( void ) {
                 if (course_direction == Course_Undefined) {
                     if (DETECT_BOLLARD(&object, TARGET_DISTANCE_150_MM)) {
                         course_direction = Course_Left;
+                        Ku
                     } else {
                         course_direction = Course_Right;
                     }
@@ -491,11 +492,11 @@ int main ( void ) {
 
                 // Step 3: rotate 90 deg (called every loop until it finishes)
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, -92)) {
+                    if (Rotate_Angle(&kobuki, 92)) {
                         state = PATHFIND;
                     }
                 } else {
-                    if (Rotate_Angle(&kobuki, 92)) {
+                    if (Rotate_Angle(&kobuki, -92)) {
                         state = PATHFIND;
                     }
                 }
