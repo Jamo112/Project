@@ -37,7 +37,7 @@
 #define AVOID_DELAY_COUNT   300000U
 
 // Common distances
-#define SENSOR_OFFSET_MM        220U    // A value that allows for easy adjustments of offset
+#define SENSOR_OFFSET_MM        240U    // A value that allows for easy adjustments of offset
 #define TARGET_DISTANCE_350_MM  (350U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_400_MM  (400U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
@@ -45,12 +45,12 @@
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
 
 // SEARCH tuning
-#define SEARCH_ROTATION_INCREMENT_DEG   17
+#define SEARCH_ROTATION_INCREMENT_DEG   11
 
 // ORIENT (bollard centring) tuning
 // Gyro angle increases CCW: a NEGATIVE step is CW, a POSITIVE step is CCW.
 // If your robot turns the wrong way, flip the signs of the steps in Bollard_centre().
-#define ORIENT_STEP_DEG           5       // each sweep step (deg)
+#define ORIENT_STEP_DEG           2       // each sweep step (deg)
 #define ORIENT_CONFIRM_SAMPLES    3U      // consecutive readings to confirm an edge
 #define ORIENT_FIND_LIMIT_CDEG    4500L   // max sweep to re-enter the bollard (0.01 deg = 45 deg)
 #define ORIENT_SPAN_LIMIT_CDEG    9000L   // max object width (0.01 deg = 90 deg), wider = wall
