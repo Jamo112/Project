@@ -466,10 +466,12 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case ORIENT:
+            Kobuki_Update_LEDs(YELLOW, OFF);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 state = IDLE;
                 break;
             }
+            
 
             if (!centre_found) {
                 // Step 1: centre on the bollard
@@ -501,6 +503,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case PATHFIND:
+            Kobuki_Update_LEDs(GREEN, OFF);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 state = IDLE;
                 break;
@@ -570,6 +573,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case STORAGE:
+            Kobuki_Update_LEDs(YELLOW, GREEN);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 break;
             }
@@ -601,6 +605,7 @@ int main ( void ) {
             break;
         // ---------------------------------------------------------------
         case DEPOSIT:
+            Kobuki_Update_LEDs(GREEN, YELLOW);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 break;
             }
