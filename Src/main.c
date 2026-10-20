@@ -37,7 +37,7 @@
 #define AVOID_DELAY_COUNT   300000U
 
 // Common distances
-#define SENSOR_OFFSET_MM        300U    // A value that allows for easy adjustments of offset
+#define SENSOR_OFFSET_MM        400U    // A value that allows for easy adjustments of offset
 #define TARGET_DISTANCE_350_MM  (350U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_400_MM  (400U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
@@ -491,11 +491,11 @@ int main ( void ) {
 
                 // Step 3: rotate 90 deg (called every loop until it finishes)
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, -90)) {
+                    if (Rotate_Angle(&kobuki, -93)) {
                         state = PATHFIND;
                     }
                 } else {
-                    if (Rotate_Angle(&kobuki, 90)) {
+                    if (Rotate_Angle(&kobuki, 93)) {
                         state = PATHFIND;
                     }
                 }
