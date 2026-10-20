@@ -374,7 +374,7 @@ int main ( void ) {
     bool search_done = false;
     bool rotating = false;
     bool found_bollard = false;
-    Kobuki_Typedef kobuki;
+    Kobuki_Typedef kobuki = {0};
     US_Typedef object;
     Kobuki_LED_Enum led_1, led_2;
 
@@ -400,19 +400,20 @@ int main ( void ) {
         // ---------------------------------------------------------------
         case IDLE:
             Kobuki_Drive(STOP);
+            Kobuki_Update_LEDs(GREEN, GREEN);
+            // led_1 = GREEN;
+            // led_2 = GREEN;
 
-            led_1 = GREEN;
-            led_2 = GREEN;
-
-            if (kobuki.button == BUTTON_0_START) {
+            if ((kobuki.button & BUTTON_0_START) != 0U) {
                 state = SEARCH;
             }
             break;
 
         // ---------------------------------------------------------------
         case SEARCH:
-            led_1 = RED;
-            led_2 = OFF;
+            Kobuki_Update_LEDs(RED, OFF);
+            // led_1 = RED;
+            // led_2 = OFF;
 
             // If currently rotating, continue until rotation completes
             if (rotating) {
@@ -441,6 +442,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case ORIENT:
+            Kobuki_Update_LEDs(YELLOW, OFF);
             if (!centre_found) {
                 // Step 1: centre on the bollard
                 Bollard_centre(&kobuki, &object);
@@ -471,6 +473,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case PATHFIND:
+            Kobuki_Update_LEDs(GREEN, OFF);
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
             case PATH_DRIVE_SECOND:
@@ -535,7 +538,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case STORAGE:
-
+            Kobuki_Update_LEDs(YELLOW, GREEN);
             if (storage_step == 0) {
                 // Drive into the storage area
                 if (!storage_started) {
@@ -563,6 +566,7 @@ int main ( void ) {
             break;
         // ---------------------------------------------------------------
         case DEPOSIT:
+            Kobuki_Update_LEDs(GREEN, YELLOW);
             switch (deposit_stage) {
                 case DEPOSIT_SEARCH:
                     // Turn until the bollard enters the ultrasonic beam.
