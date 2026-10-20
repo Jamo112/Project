@@ -514,7 +514,7 @@ int main ( void ) {
             case PATH_DRIVE_SECOND:
             // Drive forward 1200mm
                 if (!path_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1400);
                     kobuki.distance_complete = 0;
                     path_started = true;
                 }
