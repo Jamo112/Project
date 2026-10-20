@@ -1,6 +1,7 @@
+#define STM32G474xx
 #include "kobuki.h"
-#include "main.h"
-
+#include "uart.h"
+#include "stm32g4xx.h"
 #include <stdlib.h>
 #include <stdint.h>
 
