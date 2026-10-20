@@ -207,6 +207,27 @@ static void Orient_Reset(void) {
     Rotate_Reset();
 }
 
+static bool Emergency_Stop_Check(Kobuki_Typedef *kobuki, bool *rotating) {
+    if ((state == IDLE) ||
+        (((kobuki->button & BUTTON_1_STOP) == 0U) &&
+         (kobuki->wheeldrop == 0U))) {
+        return false;
+    }
+
+    Kobuki_Drive(STOP);
+    state = IDLE;
+    *rotating = false;
+    Rotate_Reset();
+    Orient_Reset();
+    path_stage = PATH_DRIVE_FIRST;
+    path_started = false;
+    storage_step = 0;
+    storage_started = false;
+    deposit_stage = DEPOSIT_SEARCH;
+
+    return true;
+}
+
 // Lost the bollard / bad reading: stop and go back to SEARCH
 static void Orient_Fail(void) {
     Orient_Stop();
@@ -411,6 +432,10 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case SEARCH:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
             led_1 = RED;
             led_2 = OFF;
 
@@ -441,6 +466,10 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case ORIENT:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
             if (!centre_found) {
                 // Step 1: centre on the bollard
                 Bollard_centre(&kobuki, &object);
@@ -471,6 +500,10 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case PATHFIND:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
             case PATH_DRIVE_SECOND:
@@ -535,6 +568,9 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case STORAGE:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
 
             if (storage_step == 0) {
                 // Drive into the storage area
@@ -563,6 +599,10 @@ int main ( void ) {
             break;
         // ---------------------------------------------------------------
         case DEPOSIT:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
             switch (deposit_stage) {
                 case DEPOSIT_SEARCH:
                     // Turn until the bollard enters the ultrasonic beam.
