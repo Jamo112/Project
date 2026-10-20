@@ -532,11 +532,11 @@ int main ( void ) {
             case PATH_TURN_90:
                 // 90 degree rotation depending on the course direction (left or right)
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, -100)) {
+                    if (Rotate_Angle(&kobuki, 90)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, 100)) {
+                    if (Rotate_Angle(&kobuki, -90)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 }
@@ -545,11 +545,11 @@ int main ( void ) {
             case PATH_FACE_STORAGE:
                 // 135 degree rotation to face storage area
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, -135)) {
+                    if (Rotate_Angle(&kobuki, 135)) {
                         path_stage = PATH_COMPLETE;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, 135)) {
+                    if (Rotate_Angle(&kobuki, -135)) {
                         path_stage = PATH_COMPLETE;
                     }
                 }
