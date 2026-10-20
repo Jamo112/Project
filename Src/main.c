@@ -514,7 +514,7 @@ int main ( void ) {
             case PATH_DRIVE_FIRST:
                 // First leg distance (mm).
                 if (!path_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1350);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1380);
                     kobuki.distance_complete = 0;
                     path_started = true;
                 }
