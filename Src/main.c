@@ -465,6 +465,10 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case ORIENT:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
             if (!centre_found) {
                 // Step 1: centre on the bollard
                 Bollard_centre(&kobuki, &object);
@@ -495,6 +499,10 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case PATHFIND:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
             case PATH_DRIVE_SECOND:
@@ -559,6 +567,9 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case STORAGE:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
 
             if (storage_step == 0) {
                 // Drive into the storage area
@@ -587,6 +598,10 @@ int main ( void ) {
             break;
         // ---------------------------------------------------------------
         case DEPOSIT:
+            if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
             switch (deposit_stage) {
                 case DEPOSIT_SEARCH:
                     // Turn until the bollard enters the ultrasonic beam.
