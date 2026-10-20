@@ -5,17 +5,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-/*
- * These UART handles must match the UART peripherals configured
- * in your STM32CubeIDE project.
- *
- * Replace huart1 with the UART handle actually connected to
- * the Kobuki if your project uses a different UART.
- */
-extern UART_HandleTypeDef huart1;
-
-/* UART timeout */
-#define UART_TIMEOUT 100
 
 /* External power control */
 #define EXTERN_PWR 0x30
@@ -44,28 +33,17 @@ void Kobuki_Tx(uint8_t *payload, uint8_t size_payload)
     }
 
     /* Send packet header */
-    HAL_UART_Transmit(
-        &huart1,
-        header,
-        sizeof(header),
-        UART_TIMEOUT
-    );
+    for (uint8_t i = 0; i < sizeof(header); i++) {
+        UART_Tx(header[i]);
+    }
 
     /* Send payload */
-    HAL_UART_Transmit(
-        &huart1,
-        payload,
-        size_payload,
-        UART_TIMEOUT
-    );
+    for (uint8_t i = 0; i < size_payload; i++) {
+        UART_Tx(payload[i]);
+    }
 
     /* Send checksum */
-    HAL_UART_Transmit(
-        &huart1,
-        &checksum,
-        1,
-        UART_TIMEOUT
-    );
+    UART_Tx(checksum);
 }
 
 
@@ -83,36 +61,18 @@ uint8_t Kobuki_Rx(uint8_t *feedback, uint8_t size_feedback)
 
     /* Find packet header */
     do {
-        if (HAL_UART_Receive(
-                &huart1,
-                &header[0],
-                1,
-                UART_TIMEOUT) != HAL_OK) {
-            return 1;
-        }
+        header[0] = UART_Rx();
     } while (header[0] != 0xAA);
 
     /* Receive second header byte */
-    if (HAL_UART_Receive(
-            &huart1,
-            &header[1],
-            1,
-            UART_TIMEOUT) != HAL_OK) {
-        return 1;
-    }
+    header[1] = UART_Rx();
 
     if (header[1] != 0x55) {
         return 1;
     }
 
     /* Receive payload size */
-    if (HAL_UART_Receive(
-            &huart1,
-            &header[2],
-            1,
-            UART_TIMEOUT) != HAL_OK) {
-        return 1;
-    }
+    header[2] = UART_Rx();
 
     size_payload = header[2];
     checksum_calculated = size_payload;
@@ -133,13 +93,7 @@ uint8_t Kobuki_Rx(uint8_t *feedback, uint8_t size_feedback)
     for (uint8_t i = 0; i < size_payload; i++) {
         uint8_t received_byte;
 
-        if (HAL_UART_Receive(
-                &huart1,
-                &received_byte,
-                1,
-                UART_TIMEOUT) != HAL_OK) {
-            return 1;
-        }
+        received_byte = UART_Rx();
 
         checksum_calculated ^= received_byte;
 
@@ -149,21 +103,15 @@ uint8_t Kobuki_Rx(uint8_t *feedback, uint8_t size_feedback)
     }
 
     /* Receive checksum */
-    if (HAL_UART_Receive(
-            &huart1,
-            &checksum_received,
-            1,
-            UART_TIMEOUT) != HAL_OK) {
-        return 1;
-    }
+    checksum_received = UART_Rx();
 
     /* Return non-zero if checksum is incorrect */
     if (checksum_calculated != checksum_received) {
         return 1;
     }
 
-    /* Ensure the received packet is the expected size */
-    if (size_payload != size_feedback) {
+    /* Extra sensor data may follow the fields copied into feedback. */
+    if (size_payload < size_feedback) {
         return 1;
     }
 
