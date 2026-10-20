@@ -435,6 +435,7 @@ int main ( void ) {
             Kobuki_Update_LEDs(RED, OFF);
 
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                state = IDLE;
                 break;
             }
 
@@ -466,6 +467,7 @@ int main ( void ) {
         // ---------------------------------------------------------------
         case ORIENT:
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                state = IDLE;
                 break;
             }
 
@@ -500,6 +502,7 @@ int main ( void ) {
         // ---------------------------------------------------------------
         case PATHFIND:
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                state = IDLE;
                 break;
             }
 
