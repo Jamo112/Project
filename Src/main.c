@@ -700,9 +700,7 @@ int main ( void ) {
 
             if ((kobuki.cliff & CLIFF_FRONT) == 0U) {
                 path_front_cliff_armed = true;
-            } else if (path_front_cliff_armed &&
-                       ((path_stage == PATH_DRIVE_FIRST) ||
-                        (path_stage == PATH_DRIVE_SECOND))) {
+            } else if (path_front_cliff_armed &&((path_stage == PATH_DRIVE_FIRST) ||(path_stage == PATH_DRIVE_SECOND))) {
                 Kobuki_Drive(STOP);
                 path_started = false;
                 path_front_cliff_armed = false;
