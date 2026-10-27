@@ -545,18 +545,18 @@ static void Reorient (Void) {
     // if hit wall or edge sensor, back up 10mm rotate 3 degrees, go forwards 10mm and end
     if (kobuki.cliff == 0x04 || kobuki.bump == 0x01) {
         Kobuki_Drive(REVERSE_SPEED_MM_S);
-        Kobuki_Drive_Distance_setpoint(-100);
+        Kobuki_Drive_Distance_setpoint(-60);
         Kobuki_Drive(STOP);
-        Rotate_Angle(&kobuki, 3); // rotate right 3 degrees
-        Kobuki_Drive_Distance_setpoint(100);
+        Rotate_Angle(&kobuki, 4); // rotate right 4 degrees
+        Kobuki_Drive_Distance_setpoint(60);
         Kobuki_Drive(STOP);
     }
     if (kobuki.cliff == 0x01 || kobuki.bump == 0x04) {
         Kobuki_Drive(REVERSE_SPEED_MM_S);
-        Kobuki_Drive_Distance_setpoint(-100);
+        Kobuki_Drive_Distance_setpoint(-60);
         Kobuki_Drive(STOP);
-        Rotate_Angle(&kobuki, -3); // rotate left 3 degrees
-        Kobuki_Drive_Distance_setpoint(100);
+        Rotate_Angle(&kobuki, -4); // rotate left 4 degrees
+        Kobuki_Drive_Distance_setpoint(60);
         Kobuki_Drive(STOP);
     }
 }
@@ -675,11 +675,11 @@ int main ( void ) {
 
                 // Step 3: rotate 90 deg (called every loop until it finishes)
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, 90)) {
+                    if (Rotate_Angle(&kobuki, 89)) {
                         state = PATHFIND;
                     }
                 } else {
-                    if (Rotate_Angle(&kobuki, -90)) {
+                    if (Rotate_Angle(&kobuki, -89)) {
                         state = PATHFIND;
                     }
                 }
@@ -750,11 +750,11 @@ int main ( void ) {
             case PATH_TURN_90:
                 // 90 degree rotation depending on the course direction (left or right) .
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, 90)) {
+                    if (Rotate_Angle(&kobuki, 89)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, -90)) {
+                    if (Rotate_Angle(&kobuki, -89)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 }
