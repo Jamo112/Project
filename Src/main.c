@@ -52,6 +52,15 @@
 #define SIDE_BUMPER_REVERSE_MM   120
 #define SIDE_BUMPER_TURN_DEG     7
 
+// Kobuki bumper and cliff sensor bit positions.
+#define BUMPER_RIGHT  (1U << 0)
+#define BUMPER_FRONT  (1U << 1)
+#define BUMPER_LEFT   (1U << 2)
+
+#define CLIFF_RIGHT   (1U << 0)
+#define CLIFF_FRONT   (1U << 1)
+#define CLIFF_LEFT    (1U << 2)
+
 // ORIENT (bollard centring) tuning
 // Gyro angle increases CCW: a NEGATIVE step is CW, a POSITIVE step is CCW.
 // If your robot turns the wrong way, flip the signs of the steps in Bollard_centre().
@@ -164,6 +173,8 @@ static BumperAction bumper_action = BUMPER_ACTION_NONE;
 static int16_t bumper_turn_angle = 0;
 static int32_t bumper_resume_distance_setpoint = 0;
 static bool bumper_resume_distance = false;
+static uint8_t bumper_release_bumper_mask = 0U;
+static uint8_t bumper_release_cliff_mask = 0U;
 
 
 /* ===========================================================================
@@ -240,7 +251,8 @@ static void Bumper_Save_Distance_Setpoint(void) {
     if (((state == PATHFIND) &&
          path_started &&
          ((path_stage == PATH_DRIVE_FIRST) ||
-          (path_stage == PATH_DRIVE_SECOND))) ||
+          (path_stage == PATH_DRIVE_SECOND) ||
+          (path_stage == PATH_BACKUP))) ||
         ((state == STORAGE) && storage_started && (storage_step == 0U))) {
         bumper_resume_distance_setpoint = Kobuki_Drive_Distance_Get_Setpoint();
         bumper_resume_distance = true;
@@ -251,15 +263,24 @@ static void Front_Bumper(Kobuki_Typedef *kobuki) {
     Bumper_Save_Distance_Setpoint();
     bumper_action = BUMPER_ACTION_FRONT;
     bumper_turn_angle = 0;
+    bumper_release_bumper_mask = BUMPER_FRONT;
+    bumper_release_cliff_mask = 0U;
     Kobuki_Drive_Distance_Setpoint(kobuki->distance, -FRONT_BUMPER_REVERSE_MM);
     kobuki->distance_complete = 0;
     bumper_stage = BUMPER_REVERSE;
 }
 
-static void Side_Bumper(Kobuki_Typedef *kobuki, int16_t turn_angle) {
+static void Side_Bumper(
+    Kobuki_Typedef *kobuki,
+    int16_t turn_angle,
+    uint8_t bumper_mask,
+    uint8_t cliff_mask)
+{
     Bumper_Save_Distance_Setpoint();
     bumper_action = BUMPER_ACTION_SIDE;
     bumper_turn_angle = turn_angle;
+    bumper_release_bumper_mask = bumper_mask;
+    bumper_release_cliff_mask = cliff_mask;
     Kobuki_Drive_Distance_Setpoint(kobuki->distance, -SIDE_BUMPER_REVERSE_MM);
     kobuki->distance_complete = 0;
     bumper_stage = BUMPER_REVERSE;
@@ -267,11 +288,23 @@ static void Side_Bumper(Kobuki_Typedef *kobuki, int16_t turn_angle) {
 
 static bool Bumper_Handle(Kobuki_Typedef *kobuki) {
     if (bumper_stage == BUMPER_IDLE) {
-        if ((kobuki->bumper & BUMPER_LEFT) != 0U) {
+        if (((kobuki->bumper & BUMPER_LEFT) != 0U) ||
+            ((kobuki->cliff & CLIFF_LEFT) != 0U)) {
             // A negative gyro angle is clockwise.
-            Side_Bumper(kobuki, -SIDE_BUMPER_TURN_DEG);
-        } else if ((kobuki->bumper & BUMPER_RIGHT) != 0U) {
-            Side_Bumper(kobuki, SIDE_BUMPER_TURN_DEG);
+            Side_Bumper(
+                kobuki,
+                -SIDE_BUMPER_TURN_DEG,
+                BUMPER_LEFT,
+                CLIFF_LEFT
+            );
+        } else if (((kobuki->bumper & BUMPER_RIGHT) != 0U) ||
+                   ((kobuki->cliff & CLIFF_RIGHT) != 0U)) {
+            Side_Bumper(
+                kobuki,
+                SIDE_BUMPER_TURN_DEG,
+                BUMPER_RIGHT,
+                CLIFF_RIGHT
+            );
         } else if ((kobuki->bumper & BUMPER_FRONT) != 0U) {
             Front_Bumper(kobuki);
         } else {
@@ -301,13 +334,16 @@ static bool Bumper_Handle(Kobuki_Typedef *kobuki) {
 
     case BUMPER_WAIT_RELEASE:
         Kobuki_Drive(STOP);
-        if (kobuki->bumper == 0U) {
+        if (((kobuki->bumper & bumper_release_bumper_mask) == 0U) &&
+            ((kobuki->cliff & bumper_release_cliff_mask) == 0U)) {
             if (bumper_resume_distance) {
                 Kobuki_Drive_Distance_Restore_Setpoint(bumper_resume_distance_setpoint);
                 bumper_resume_distance = false;
             }
             bumper_stage = BUMPER_IDLE;
             bumper_action = BUMPER_ACTION_NONE;
+            bumper_release_bumper_mask = 0U;
+            bumper_release_cliff_mask = 0U;
         }
         break;
 
@@ -335,6 +371,8 @@ static bool Emergency_Stop_Check(Kobuki_Typedef *kobuki, bool *rotating) {
     bumper_action = BUMPER_ACTION_NONE;
     bumper_turn_angle = 0;
     bumper_resume_distance = false;
+    bumper_release_bumper_mask = 0U;
+    bumper_release_cliff_mask = 0U;
     path_stage = PATH_DRIVE_FIRST;
     path_started = false;
     path_front_cliff_armed = true;
@@ -656,8 +694,7 @@ int main ( void ) {
                 break;
             }
 
-            if ((kobuki.cliff & (CLIFF_LEFT | CLIFF_RIGHT)) != 0U) {
-                Kobuki_Drive(STOP);
+            if (Bumper_Handle(&kobuki)) {
                 break;
             }
 
@@ -675,10 +712,6 @@ int main ( void ) {
                 } else {
                     path_stage = PATH_FACE_STORAGE;
                 }
-            }
-
-            if (Bumper_Handle(&kobuki)) {
-                break;
             }
 
             switch (path_stage) {
