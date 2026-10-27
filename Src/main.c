@@ -669,7 +669,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case PATHFIND:
-            Kobuki_Update_LEDs(GREEN, OFF);
+            Kobuki_Update_LEDs(RED, RED);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 state = IDLE;
                 break;
@@ -721,11 +721,11 @@ int main ( void ) {
             case PATH_TURN_90:
                 // 90 degree rotation depending on the course direction (left or right) .
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, 90)) {
+                    if (Rotate_Angle(&kobuki, -90)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, -90)) {
+                    if (Rotate_Angle(&kobuki, 90)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 }
@@ -763,7 +763,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case STORAGE:
-            Kobuki_Update_LEDs(YELLOW, GREEN);
+            Kobuki_Update_LEDs(YELLOW, RED);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 break;
             }
@@ -799,7 +799,7 @@ int main ( void ) {
             break;
         // ---------------------------------------------------------------
         case DEPOSIT:
-            Kobuki_Update_LEDs(GREEN, YELLOW);
+            Kobuki_Update_LEDs(RED, YELLOW);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 break;
             }
