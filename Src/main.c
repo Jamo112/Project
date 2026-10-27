@@ -481,7 +481,6 @@ int main ( void ) {
                 if (course_direction == Course_Undefined) {
                     if (DETECT_BOLLARD(&object, TARGET_DISTANCE_150_MM)) {
                         course_direction = Course_Left;
-                        Ku
                     } else {
                         course_direction = Course_Right;
                     }
