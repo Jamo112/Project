@@ -43,6 +43,8 @@
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
+#define DEPOSIT_DETECT_DISTANCE_MM 350U
+#define DEPOSIT_STOP_DISTANCE_MM   100U
 
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   11
@@ -404,7 +406,11 @@ static void Orient_Fail(void) {
 // ---------------------------------------------------------------------------
 void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
     int32_t delta;
-    bool    seen = DETECT_BOLLARD(object, TARGET_DISTANCE_350_MM);
+    uint16_t detection_distance = TARGET_DISTANCE_350_MM;
+    if (state == DEPOSIT) {
+        detection_distance = DEPOSIT_DETECT_DISTANCE_MM;
+    }
+    bool    seen = DETECT_BOLLARD(object, detection_distance);
 
     // First call after a reset: take a reference heading
     if (orient_first) {
@@ -811,7 +817,7 @@ int main ( void ) {
             switch (deposit_stage) {
                 case DEPOSIT_SEARCH:
                     // Turn until the bollard enters the ultrasonic beam.
-                    if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM)) {
+                    if (DETECT_BOLLARD(&object, DEPOSIT_DETECT_DISTANCE_MM)) {
                         Orient_Stop();
                         Orient_Reset();
                         deposit_stage = DEPOSIT_CENTRE;
@@ -829,10 +835,10 @@ int main ( void ) {
 
                 case DEPOSIT_APPROACH:
                     Ultrasonic_Detect(&object);
-                    if (object.range_mm <= TARGET_DISTANCE_100_MM) {
+                    if (object.range_mm <= DEPOSIT_STOP_DISTANCE_MM) {
                         Kobuki_Drive(STOP);
                         deposit_stage = DEPOSIT_COMPLETE;
-                    } else if (object.range_mm > TARGET_DISTANCE_350_MM) {
+                    } else if (object.range_mm > DEPOSIT_DETECT_DISTANCE_MM) {
                         // Centre again if the target is lost.
                         Orient_Stop();
                         Orient_Reset();
