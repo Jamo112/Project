@@ -687,28 +687,18 @@ int main ( void ) {
                 path_front_cliff_armed = false;
 
                 if (path_stage == PATH_DRIVE_FIRST) {
-                    path_stage = PATH_TURN_90;
+                    path_after_backup = PATH_TURN_90;
                 } else {
-                    path_stage = PATH_FACE_STORAGE;
+                    path_after_backup = PATH_FACE_STORAGE;
                 }
+                path_stage = PATH_BACKUP;
             }
 
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
             case PATH_DRIVE_SECOND:
-                // Approach until the centre (front) cliff sensor triggers.
-                if ((kobuki.cliff & 0x02U) != 0U) {
-                    Kobuki_Drive(STOP);
-                    path_started = false;
-                    if (path_stage == PATH_DRIVE_FIRST) {
-                        path_after_backup = PATH_TURN_90;
-                    } else {
-                        path_after_backup = PATH_FACE_STORAGE;
-                    }
-                    path_stage = PATH_BACKUP;
-                } else {
-                    Kobuki_Drive(FORWARD_SPEED_MM_S);
-                }
+                // Cliff detection above selects the backup and subsequent turn.
+                Kobuki_Drive(FORWARD_SPEED_MM_S);
                 break;
 
             case PATH_BACKUP:
