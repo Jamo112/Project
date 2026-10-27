@@ -61,15 +61,6 @@
 # define TRUE 1
 
 
-// Bumper and Cliff sensor layouts
-#define BUMPER_RIGHT  (1U << 0)
-#define BUMPER_FRONT (1U << 1)
-#define BUMPER_LEFT   (1U << 2)
-
-#define CLIFF_RIGHT   (1U << 0)
-#define CLIFF_FRONT  (1U << 1)
-#define CLIFF_LEFT    (1U << 2)
-
 /* ===========================================================================
  * TYPES AND GLOBAL VARIABLES
  * =========================================================================*/
@@ -397,6 +388,27 @@ static void Send_Kobuki_Move(int16_t speed, int16_t radius) {
     Kobuki_Tx(payload, sizeof(payload));
 }
 
+
+// Reorient: if the robot hits a wall or cliff, back up, rotate slightly, and move forward
+static void Reorient (Void) {
+    // if hit wall or edge sensor, back up 10mm rotate 3 degrees, go forwards 10mm and end
+    if (kobuki.cliff == 0x04 || kobuki.bump == 0x01) {
+        Kobuki_Drive(REVERSE_SPEED_MM_S);
+        Kobuki_Drive_Distance_setpoint(-100);
+        Kobuki_Drive(STOP);
+        Rotate_Angle(&kobuki, 3); // rotate right 3 degrees
+        Kobuki_Drive_Distance_setpoint(100);
+        Kobuki_Drive(STOP);
+    }
+    if (kobuki.cliff == 0x01 || kobuki.bump == 0x04) {
+        Kobuki_Drive(REVERSE_SPEED_MM_S);
+        Kobuki_Drive_Distance_setpoint(-100);
+        Kobuki_Drive(STOP);
+        Rotate_Angle(&kobuki, -3); // rotate left 3 degrees
+        Kobuki_Drive_Distance_setpoint(100);
+        Kobuki_Drive(STOP);
+    }
+}
 
 /* ===========================================================================
  * MAIN
