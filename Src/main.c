@@ -116,6 +116,7 @@ bool rot_started = false;
 // Pathfind variables
 typedef enum {
     PATH_DRIVE_FIRST = 0,
+    PATH_BACKUP,
     PATH_TURN_90,
     PATH_DRIVE_SECOND,
     PATH_FACE_STORAGE,
@@ -123,6 +124,7 @@ typedef enum {
 } PathStage;
 
 static PathStage path_stage = PATH_DRIVE_FIRST;
+static PathStage path_after_backup = PATH_TURN_90;
 bool path_started = false;
 
 // Storage variables
@@ -512,26 +514,26 @@ int main ( void ) {
 
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
-                // First leg distance (mm).
-                if (!path_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1380);
-                    kobuki.distance_complete = 0;
-                    path_started = true;
-                }
-
-                Kobuki_Drive_Distance(kobuki.distance);
-
-                if (kobuki.distance_complete) {
+            case PATH_DRIVE_SECOND:
+                // Approach until the centre (front) cliff sensor triggers.
+                if ((kobuki.cliff & 0x02U) != 0U) {
                     Kobuki_Drive(STOP);
                     path_started = false;
-                    path_stage = PATH_TURN_90;
+                    if (path_stage == PATH_DRIVE_FIRST) {
+                        path_after_backup = PATH_TURN_90;
+                    } else {
+                        path_after_backup = PATH_FACE_STORAGE;
+                    }
+                    path_stage = PATH_BACKUP;
+                } else {
+                    Kobuki_Drive(FORWARD_SPEED_MM_S);
                 }
                 break;
 
-            case PATH_DRIVE_SECOND:
-                // Second leg distance (mm).
+            case PATH_BACKUP:
+                // Shared 100 mm backup after front cliff detection.
                 if (!path_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1250);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, -100);
                     kobuki.distance_complete = 0;
                     path_started = true;
                 }
@@ -541,7 +543,7 @@ int main ( void ) {
                 if (kobuki.distance_complete) {
                     Kobuki_Drive(STOP);
                     path_started = false;
-                    path_stage = PATH_FACE_STORAGE;
+                    path_stage = path_after_backup;
                 }
                 break;
 
