@@ -504,11 +504,11 @@ int main ( void ) {
 
                 // Step 3: rotate 90 deg (called every loop until it finishes)
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, 92)) {
+                    if (Rotate_Angle(&kobuki, 90)) {
                         state = PATHFIND;
                     }
                 } else {
-                    if (Rotate_Angle(&kobuki, -92)) {
+                    if (Rotate_Angle(&kobuki, -90)) {
                         state = PATHFIND;
                     }
                 }
