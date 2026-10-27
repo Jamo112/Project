@@ -241,6 +241,17 @@ void Kobuki_Drive_Distance_Setpoint(
         + (int32_t)(distance / MM_PER_TICK);
 }
 
+int32_t Kobuki_Drive_Distance_Get_Setpoint(void)
+{
+    return setpoint_distance_tick;
+}
+
+void Kobuki_Drive_Distance_Restore_Setpoint(int32_t setpoint_distance_tick_value)
+{
+    setpoint_distance_tick = setpoint_distance_tick_value;
+    distance_complete = 0;
+}
+
 
 /* =========================================================
  * DRIVE TO DISTANCE SETPOINT
