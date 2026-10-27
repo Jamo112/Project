@@ -748,7 +748,7 @@ int main ( void ) {
                 break;
 
             case PATH_TURN_90:
-                // 90 degree rotation depending on the course direction (left or right)
+                // 90 degree rotation depending on the course direction (left or right) .
                 if (course_direction == Course_Left) {
                     if (Rotate_Angle(&kobuki, 90)) {
                         path_stage = PATH_DRIVE_SECOND;
