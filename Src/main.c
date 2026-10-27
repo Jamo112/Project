@@ -43,8 +43,8 @@
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
-#define DEPOSIT_DETECT_DISTANCE_MM 350U
-#define DEPOSIT_STOP_DISTANCE_MM   100U
+#define DEPOSIT_DETECT_DISTANCE_MM  (200U + SENSOR_OFFSET_MM)
+#define DEPOSIT_STOP_DISTANCE_MM   (100U)
 
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   11
@@ -781,7 +781,7 @@ int main ( void ) {
             if (storage_step == 0) {
                 // Drive into the storage area
                 if (!storage_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 800);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 850);
                     kobuki.distance_complete = 0;
                     storage_started = true;
                 }
@@ -835,16 +835,12 @@ int main ( void ) {
 
                 case DEPOSIT_APPROACH:
                     Ultrasonic_Detect(&object);
-                    if (object.range_mm <= DEPOSIT_STOP_DISTANCE_MM) {
+                    if (object.range_mm > DEPOSIT_STOP_DISTANCE_MM) {
+                        Kobuki_Drive(DEPOSIT_APPROACH_SPEED_MM_S);
+                    } else {
                         Kobuki_Drive(STOP);
                         deposit_stage = DEPOSIT_COMPLETE;
-                    } else if (object.range_mm > DEPOSIT_DETECT_DISTANCE_MM) {
-                        // Centre again if the target is lost.
-                        Orient_Stop();
-                        Orient_Reset();
-                        deposit_stage = DEPOSIT_SEARCH;
-                    } else {
-                        Kobuki_Drive(DEPOSIT_APPROACH_SPEED_MM_S);
+                        state = IDLE;
                     }
                     break;
 
