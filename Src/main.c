@@ -43,8 +43,8 @@
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
-#define DEPOSIT_DETECT_DISTANCE_MM  (200U + SENSOR_OFFSET_MM)
-#define DEPOSIT_STOP_DISTANCE_MM   (100U)
+#define DEPOSIT_DETECT_DISTANCE_MM  (150U + SENSOR_OFFSET_MM)
+#define DEPOSIT_STOP_DISTANCE_MM   (SENSOR_OFFSET_MM)  // Stop 50 mm from the bollard
 
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   11
@@ -821,6 +821,7 @@ int main ( void ) {
                         Orient_Stop();
                         Orient_Reset();
                         deposit_stage = DEPOSIT_CENTRE;
+                        centre_found = false;
                     } else {
                         Kobuki_Rotate(SEARCH_SPEED_MM_S);
                     }
@@ -831,6 +832,13 @@ int main ( void ) {
                     if (centre_found) {
                         deposit_stage = DEPOSIT_APPROACH;
                     }
+                    else if (!centre_found) {
+                        // Bollard lost: go back to SEARCH
+                        Orient_Fail();
+                        deposit_stage = DEPOSIT_SEARCH;
+
+                    }
+
                     break;
 
                 case DEPOSIT_APPROACH:
