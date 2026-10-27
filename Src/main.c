@@ -61,6 +61,15 @@
 # define TRUE 1
 
 
+// Bumper and Cliff sensor layouts
+#define BUMPER_RIGHT  (1U << 0)
+#define BUMPER_FRONT (1U << 1)
+#define BUMPER_LEFT   (1U << 2)
+
+#define CLIFF_RIGHT   (1U << 0)
+#define CLIFF_FRONT  (1U << 1)
+#define CLIFF_LEFT    (1U << 2)
+
 /* ===========================================================================
  * TYPES AND GLOBAL VARIABLES
  * =========================================================================*/
@@ -128,6 +137,7 @@ bool path_started = false;
 // Storage variables
 uint8_t storage_step = 0;
 bool storage_started = false;
+static bool path_front_cliff_armed = true;
 
 typedef enum {
     DEPOSIT_SEARCH = 0,
@@ -221,6 +231,7 @@ static bool Emergency_Stop_Check(Kobuki_Typedef *kobuki, bool *rotating) {
     Orient_Reset();
     path_stage = PATH_DRIVE_FIRST;
     path_started = false;
+    path_front_cliff_armed = true;
     storage_step = 0;
     storage_started = false;
     deposit_stage = DEPOSIT_SEARCH;
@@ -509,6 +520,28 @@ int main ( void ) {
                 break;
             }
 
+            if ((kobuki.bumper != 0U) ||
+                ((kobuki.cliff & (CLIFF_LEFT | CLIFF_RIGHT)) != 0U)) {
+                Kobuki_Drive(STOP);
+                break;
+            }
+
+            if ((kobuki.cliff & CLIFF_FRONT) == 0U) {
+                path_front_cliff_armed = true;
+            } else if (path_front_cliff_armed &&
+                       ((path_stage == PATH_DRIVE_FIRST) ||
+                        (path_stage == PATH_DRIVE_SECOND))) {
+                Kobuki_Drive(STOP);
+                path_started = false;
+                path_front_cliff_armed = false;
+
+                if (path_stage == PATH_DRIVE_FIRST) {
+                    path_stage = PATH_TURN_90;
+                } else {
+                    path_stage = PATH_FACE_STORAGE;
+                }
+            }
+
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
             case PATH_DRIVE_SECOND:
@@ -560,6 +593,7 @@ int main ( void ) {
                 Kobuki_Drive(STOP);
                 path_stage = PATH_DRIVE_FIRST;
                 path_started = false;
+                path_front_cliff_armed = true;
                 state = STORAGE;
                 break;
 
