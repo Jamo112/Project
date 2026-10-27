@@ -37,7 +37,7 @@
 #define AVOID_DELAY_COUNT   300000U
 
 // Common distances
-#define SENSOR_OFFSET_MM        280U    // A value that allows for easy adjustments of offset
+#define SENSOR_OFFSET_MM        500U    // A value that allows for easy adjustments of offset
 #define TARGET_DISTANCE_350_MM  (350U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_400_MM  (400U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
@@ -460,7 +460,7 @@ int main ( void ) {
             }
 
             // Only check the sensor when stationary
-            if (DETECT_BOLLARD(&object, TARGET_DISTANCE_400_MM)) {
+            if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM)) {
                 // Bollard found: hand straight over to ORIENT to centre on it
                 Kobuki_Drive(STOP);
                 rotating = false;
@@ -492,20 +492,22 @@ int main ( void ) {
                 if (course_direction == Course_Undefined) {
                     if (DETECT_BOLLARD(&object, TARGET_DISTANCE_150_MM)) {
                         course_direction = Course_Left;
+                        Ku
                     } else {
                         course_direction = Course_Right;
                     }
+                    // if we see a bollard within 150mm we go left route else we go the right route. 
 
                     Rotate_Reset();
                 }
 
                 // Step 3: rotate 90 deg (called every loop until it finishes)
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, -95)) {
+                    if (Rotate_Angle(&kobuki, 92)) {
                         state = PATHFIND;
                     }
                 } else {
-                    if (Rotate_Angle(&kobuki, 95)) {
+                    if (Rotate_Angle(&kobuki, -92)) {
                         state = PATHFIND;
                     }
                 }
@@ -544,10 +546,9 @@ int main ( void ) {
 
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
-            case PATH_DRIVE_SECOND:
-            // Drive forward 1200mm
+                // First leg distance (mm).
                 if (!path_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1200);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1380);
                     kobuki.distance_complete = 0;
                     path_started = true;
                 }
@@ -557,8 +558,24 @@ int main ( void ) {
                 if (kobuki.distance_complete) {
                     Kobuki_Drive(STOP);
                     path_started = false;
-                    path_stage = (path_stage == PATH_DRIVE_FIRST)
-                        ? PATH_TURN_90 : PATH_FACE_STORAGE;
+                    path_stage = PATH_TURN_90;
+                }
+                break;
+
+            case PATH_DRIVE_SECOND:
+                // Second leg distance (mm).
+                if (!path_started) {
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 1250);
+                    kobuki.distance_complete = 0;
+                    path_started = true;
+                }
+
+                Kobuki_Drive_Distance(kobuki.distance);
+
+                if (kobuki.distance_complete) {
+                    Kobuki_Drive(STOP);
+                    path_started = false;
+                    path_stage = PATH_FACE_STORAGE;
                 }
                 break;
 
