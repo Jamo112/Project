@@ -50,7 +50,7 @@
 // Bumper recovery distances and turn angle.
 #define FRONT_BUMPER_REVERSE_MM  100
 #define SIDE_BUMPER_REVERSE_MM   120
-#define SIDE_BUMPER_TURN_DEG     7
+#define SIDE_BUMPER_TURN_DEG     6
 
 // Kobuki bumper and cliff sensor bit positions.
 #define BUMPER_RIGHT  (1U << 0)
