@@ -47,6 +47,11 @@
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   11
 
+// Bumper recovery distances and turn angle.
+#define FRONT_BUMPER_REVERSE_MM  100
+#define SIDE_BUMPER_REVERSE_MM   120
+#define SIDE_BUMPER_TURN_DEG     7
+
 // ORIENT (bollard centring) tuning
 // Gyro angle increases CCW: a NEGATIVE step is CW, a POSITIVE step is CCW.
 // If your robot turns the wrong way, flip the signs of the steps in Bollard_centre().
@@ -148,6 +153,25 @@ typedef enum {
 
 static DepositStage deposit_stage = DEPOSIT_SEARCH;
 
+typedef enum {
+    BUMPER_IDLE = 0,
+    BUMPER_REVERSE,
+    BUMPER_TURN,
+    BUMPER_WAIT_RELEASE
+} BumperStage;
+
+typedef enum {
+    BUMPER_ACTION_NONE = 0,
+    BUMPER_ACTION_FRONT,
+    BUMPER_ACTION_SIDE
+} BumperAction;
+
+static BumperStage bumper_stage = BUMPER_IDLE;
+static BumperAction bumper_action = BUMPER_ACTION_NONE;
+static int16_t bumper_turn_angle = 0;
+static int32_t bumper_resume_distance_setpoint = 0;
+static bool bumper_resume_distance = false;
+
 
 /* ===========================================================================
  * CUSTOM FUNCTIONS
@@ -217,6 +241,91 @@ static void Orient_Reset(void) {
     Rotate_Reset();
 }
 
+static void Bumper_Save_Distance_Setpoint(void) {
+    bumper_resume_distance = false;
+
+    if (((state == PATHFIND) &&
+         path_started &&
+         ((path_stage == PATH_DRIVE_FIRST) ||
+          (path_stage == PATH_DRIVE_SECOND))) ||
+        ((state == STORAGE) && storage_started && (storage_step == 0U))) {
+        bumper_resume_distance_setpoint = Kobuki_Drive_Distance_Get_Setpoint();
+        bumper_resume_distance = true;
+    }
+}
+
+static void Front_Bumper(Kobuki_Typedef *kobuki) {
+    Bumper_Save_Distance_Setpoint();
+    bumper_action = BUMPER_ACTION_FRONT;
+    bumper_turn_angle = 0;
+    Kobuki_Drive_Distance_Setpoint(kobuki->distance, -FRONT_BUMPER_REVERSE_MM);
+    kobuki->distance_complete = 0;
+    bumper_stage = BUMPER_REVERSE;
+}
+
+static void Side_Bumper(Kobuki_Typedef *kobuki, int16_t turn_angle) {
+    Bumper_Save_Distance_Setpoint();
+    bumper_action = BUMPER_ACTION_SIDE;
+    bumper_turn_angle = turn_angle;
+    Kobuki_Drive_Distance_Setpoint(kobuki->distance, -SIDE_BUMPER_REVERSE_MM);
+    kobuki->distance_complete = 0;
+    bumper_stage = BUMPER_REVERSE;
+}
+
+static bool Bumper_Handle(Kobuki_Typedef *kobuki) {
+    if (bumper_stage == BUMPER_IDLE) {
+        if ((kobuki->bumper & BUMPER_LEFT) != 0U) {
+            // A negative gyro angle is clockwise.
+            Side_Bumper(kobuki, -SIDE_BUMPER_TURN_DEG);
+        } else if ((kobuki->bumper & BUMPER_RIGHT) != 0U) {
+            Side_Bumper(kobuki, SIDE_BUMPER_TURN_DEG);
+        } else if ((kobuki->bumper & BUMPER_FRONT) != 0U) {
+            Front_Bumper(kobuki);
+        } else {
+            return false;
+        }
+    }
+
+    switch (bumper_stage) {
+    case BUMPER_REVERSE:
+        Kobuki_Drive_Distance(kobuki->distance);
+        if (kobuki->distance_complete) {
+            Kobuki_Drive(STOP);
+            if (bumper_action == BUMPER_ACTION_SIDE) {
+                Rotate_Reset();
+                bumper_stage = BUMPER_TURN;
+            } else {
+                bumper_stage = BUMPER_WAIT_RELEASE;
+            }
+        }
+        break;
+
+    case BUMPER_TURN:
+        if (Rotate_Angle(kobuki, bumper_turn_angle)) {
+            bumper_stage = BUMPER_WAIT_RELEASE;
+        }
+        break;
+
+    case BUMPER_WAIT_RELEASE:
+        Kobuki_Drive(STOP);
+        if (kobuki->bumper == 0U) {
+            if (bumper_resume_distance) {
+                Kobuki_Drive_Distance_Restore_Setpoint(bumper_resume_distance_setpoint);
+                bumper_resume_distance = false;
+            }
+            bumper_stage = BUMPER_IDLE;
+            bumper_action = BUMPER_ACTION_NONE;
+        }
+        break;
+
+    case BUMPER_IDLE:
+    default:
+        break;
+    }
+
+    return true;
+}
+
 static bool Emergency_Stop_Check(Kobuki_Typedef *kobuki, bool *rotating) {
     if ((state == IDLE) ||
         (((kobuki->button & BUTTON_1_STOP) == 0U) &&
@@ -229,6 +338,10 @@ static bool Emergency_Stop_Check(Kobuki_Typedef *kobuki, bool *rotating) {
     *rotating = false;
     Rotate_Reset();
     Orient_Reset();
+    bumper_stage = BUMPER_IDLE;
+    bumper_action = BUMPER_ACTION_NONE;
+    bumper_turn_angle = 0;
+    bumper_resume_distance = false;
     path_stage = PATH_DRIVE_FIRST;
     path_started = false;
     path_front_cliff_armed = true;
@@ -450,6 +563,10 @@ int main ( void ) {
                 break;
             }
 
+            if (Bumper_Handle(&kobuki)) {
+                break;
+            }
+
             // If currently rotating, continue until rotation completes
             if (rotating) {
                 if (Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG)) {
@@ -480,6 +597,10 @@ int main ( void ) {
             Kobuki_Update_LEDs(YELLOW, OFF);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 state = IDLE;
+                break;
+            }
+
+            if (Bumper_Handle(&kobuki)) {
                 break;
             }
             
@@ -522,8 +643,7 @@ int main ( void ) {
                 break;
             }
 
-            if ((kobuki.bumper != 0U) ||
-                ((kobuki.cliff & (CLIFF_LEFT | CLIFF_RIGHT)) != 0U)) {
+            if ((kobuki.cliff & (CLIFF_LEFT | CLIFF_RIGHT)) != 0U) {
                 Kobuki_Drive(STOP);
                 break;
             }
@@ -542,6 +662,10 @@ int main ( void ) {
                 } else {
                     path_stage = PATH_FACE_STORAGE;
                 }
+            }
+
+            if (Bumper_Handle(&kobuki)) {
+                break;
             }
 
             switch (path_stage) {
@@ -629,6 +753,10 @@ int main ( void ) {
                 break;
             }
 
+            if (Bumper_Handle(&kobuki)) {
+                break;
+            }
+
             if (storage_step == 0) {
                 // Drive into the storage area
                 if (!storage_started) {
@@ -658,6 +786,10 @@ int main ( void ) {
         case DEPOSIT:
             Kobuki_Update_LEDs(GREEN, YELLOW);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
+                break;
+            }
+
+            if (Bumper_Handle(&kobuki)) {
                 break;
             }
 

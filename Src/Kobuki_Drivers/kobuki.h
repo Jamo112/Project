@@ -72,6 +72,8 @@ void Kobuki_Drive_Distance_Setpoint(
 );
 
 void Kobuki_Drive_Distance(uint16_t current_distance_tick);
+int32_t Kobuki_Drive_Distance_Get_Setpoint(void);
+void Kobuki_Drive_Distance_Restore_Setpoint(int32_t setpoint_distance_tick);
 
 /* Angle movement */
 void Kobuki_Rotate_Angle_Setpoint(
