@@ -43,6 +43,8 @@
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
+#define DEPOSIT_DETECT_DISTANCE_MM  (200U + SENSOR_OFFSET_MM)
+#define DEPOSIT_STOP_DISTANCE_MM   (100U)
 
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   11
@@ -50,7 +52,7 @@
 // Bumper recovery distances and turn angle.
 #define FRONT_BUMPER_REVERSE_MM  100
 #define SIDE_BUMPER_REVERSE_MM   120
-#define SIDE_BUMPER_TURN_DEG     7
+#define SIDE_BUMPER_TURN_DEG     6
 
 // Kobuki bumper and cliff sensor bit positions.
 #define BUMPER_RIGHT  (1U << 0)
@@ -404,7 +406,11 @@ static void Orient_Fail(void) {
 // ---------------------------------------------------------------------------
 void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
     int32_t delta;
-    bool    seen = DETECT_BOLLARD(object, TARGET_DISTANCE_350_MM);
+    uint16_t detection_distance = TARGET_DISTANCE_350_MM;
+    if (state == DEPOSIT) {
+        detection_distance = DEPOSIT_DETECT_DISTANCE_MM;
+    }
+    bool    seen = DETECT_BOLLARD(object, detection_distance);
 
     // First call after a reset: take a reference heading
     if (orient_first) {
@@ -540,26 +546,7 @@ static void Send_Kobuki_Move(int16_t speed, int16_t radius) {
 }
 
 
-// Reorient: if the robot hits a wall or cliff, back up, rotate slightly, and move forward
-static void Reorient (Void) {
-    // if hit wall or edge sensor, back up 10mm rotate 3 degrees, go forwards 10mm and end
-    if (kobuki.cliff == 0x04 || kobuki.bump == 0x01) {
-        Kobuki_Drive(REVERSE_SPEED_MM_S);
-        Kobuki_Drive_Distance_setpoint(-60);
-        Kobuki_Drive(STOP);
-        Rotate_Angle(&kobuki, 4); // rotate right 4 degrees
-        Kobuki_Drive_Distance_setpoint(60);
-        Kobuki_Drive(STOP);
-    }
-    if (kobuki.cliff == 0x01 || kobuki.bump == 0x04) {
-        Kobuki_Drive(REVERSE_SPEED_MM_S);
-        Kobuki_Drive_Distance_setpoint(-60);
-        Kobuki_Drive(STOP);
-        Rotate_Angle(&kobuki, -4); // rotate left 4 degrees
-        Kobuki_Drive_Distance_setpoint(60);
-        Kobuki_Drive(STOP);
-    }
-}
+
 
 /* ===========================================================================
  * MAIN
@@ -688,7 +675,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case PATHFIND:
-            Kobuki_Update_LEDs(GREEN, OFF);
+            Kobuki_Update_LEDs(RED, RED);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 state = IDLE;
                 break;
@@ -706,28 +693,18 @@ int main ( void ) {
                 path_front_cliff_armed = false;
 
                 if (path_stage == PATH_DRIVE_FIRST) {
-                    path_stage = PATH_TURN_90;
+                    path_after_backup = PATH_TURN_90;
                 } else {
-                    path_stage = PATH_FACE_STORAGE;
+                    path_after_backup = PATH_FACE_STORAGE;
                 }
+                path_stage = PATH_BACKUP;
             }
 
             switch (path_stage) {
             case PATH_DRIVE_FIRST:
             case PATH_DRIVE_SECOND:
-                // Approach until the centre (front) cliff sensor triggers.
-                if ((kobuki.cliff & 0x02U) != 0U) {
-                    Kobuki_Drive(STOP);
-                    path_started = false;
-                    if (path_stage == PATH_DRIVE_FIRST) {
-                        path_after_backup = PATH_TURN_90;
-                    } else {
-                        path_after_backup = PATH_FACE_STORAGE;
-                    }
-                    path_stage = PATH_BACKUP;
-                } else {
-                    Kobuki_Drive(FORWARD_SPEED_MM_S);
-                }
+                // Cliff detection above selects the backup and subsequent turn.
+                Kobuki_Drive(FORWARD_SPEED_MM_S);
                 break;
 
             case PATH_BACKUP:
@@ -750,11 +727,11 @@ int main ( void ) {
             case PATH_TURN_90:
                 // 90 degree rotation depending on the course direction (left or right) .
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, 89)) {
+                    if (Rotate_Angle(&kobuki, 90)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, -89)) {
+                    if (Rotate_Angle(&kobuki, -90)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 }
@@ -763,11 +740,11 @@ int main ( void ) {
             case PATH_FACE_STORAGE:
                 // 135 degree rotation to face storage area
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, 135)) {
+                    if (Rotate_Angle(&kobuki, -135)) {
                         path_stage = PATH_COMPLETE;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, -135)) {
+                    if (Rotate_Angle(&kobuki, 135)) {
                         path_stage = PATH_COMPLETE;
                     }
                 }
@@ -792,7 +769,7 @@ int main ( void ) {
 
         // ---------------------------------------------------------------
         case STORAGE:
-            Kobuki_Update_LEDs(YELLOW, GREEN);
+            Kobuki_Update_LEDs(YELLOW, RED);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 break;
             }
@@ -804,7 +781,7 @@ int main ( void ) {
             if (storage_step == 0) {
                 // Drive into the storage area
                 if (!storage_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 800);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 850);
                     kobuki.distance_complete = 0;
                     storage_started = true;
                 }
@@ -828,7 +805,7 @@ int main ( void ) {
             break;
         // ---------------------------------------------------------------
         case DEPOSIT:
-            Kobuki_Update_LEDs(GREEN, YELLOW);
+            Kobuki_Update_LEDs(RED, YELLOW);
             if (Emergency_Stop_Check(&kobuki, &rotating)) {
                 break;
             }
@@ -840,7 +817,7 @@ int main ( void ) {
             switch (deposit_stage) {
                 case DEPOSIT_SEARCH:
                     // Turn until the bollard enters the ultrasonic beam.
-                    if (DETECT_BOLLARD(&object, TARGET_DISTANCE_350_MM)) {
+                    if (DETECT_BOLLARD(&object, DEPOSIT_DETECT_DISTANCE_MM)) {
                         Orient_Stop();
                         Orient_Reset();
                         deposit_stage = DEPOSIT_CENTRE;
@@ -858,16 +835,12 @@ int main ( void ) {
 
                 case DEPOSIT_APPROACH:
                     Ultrasonic_Detect(&object);
-                    if (object.range_mm <= TARGET_DISTANCE_100_MM) {
+                    if (object.range_mm > DEPOSIT_STOP_DISTANCE_MM) {
+                        Kobuki_Drive(DEPOSIT_APPROACH_SPEED_MM_S);
+                    } else {
                         Kobuki_Drive(STOP);
                         deposit_stage = DEPOSIT_COMPLETE;
-                    } else if (object.range_mm > TARGET_DISTANCE_350_MM) {
-                        // Centre again if the target is lost.
-                        Orient_Stop();
-                        Orient_Reset();
-                        deposit_stage = DEPOSIT_SEARCH;
-                    } else {
-                        Kobuki_Drive(DEPOSIT_APPROACH_SPEED_MM_S);
+                        state = IDLE;
                     }
                     break;
 
