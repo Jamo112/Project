@@ -44,14 +44,16 @@
 #define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
 #define DEPOSIT_DETECT_DISTANCE_MM  (200U + SENSOR_OFFSET_MM)
-#define DEPOSIT_STOP_DISTANCE_MM   TARGET_DISTANCE_100_MM
+#define DEPOSIT_SENSOR_OFFSET_MM   200U
+#define DEPOSIT_FRONT_CLEARANCE_MM  220U
+#define DEPOSIT_STOP_DISTANCE_MM   (DEPOSIT_SENSOR_OFFSET_MM + DEPOSIT_FRONT_CLEARANCE_MM)
 
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   11
 
 // Bumper recovery distances and turn angle.
 #define FRONT_BUMPER_REVERSE_MM  100
-#define SIDE_BUMPER_REVERSE_MM   120
+#define SIDE_BUMPER_REVERSE_MM   80
 #define SIDE_BUMPER_TURN_DEG     6
 
 // Kobuki bumper and cliff sensor bit positions.
@@ -729,11 +731,11 @@ int main ( void ) {
             case PATH_TURN_90:
                 // 90 degree rotation depending on the course direction (left or right) .
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, 90)) {
+                    if (Rotate_Angle(&kobuki, -89)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, -90)) {
+                    if (Rotate_Angle(&kobuki, 89)) {
                         path_stage = PATH_DRIVE_SECOND;
                     }
                 }
@@ -842,12 +844,6 @@ int main ( void ) {
                     Bollard_centre(&kobuki, &object);
                     if (centre_found) {
                         deposit_stage = DEPOSIT_APPROACH;
-                    }
-                    else if (!centre_found) {
-                        // Bollard lost: go back to SEARCH
-                        Orient_Fail();
-                        deposit_stage = DEPOSIT_SEARCH;
-
                     }
 
                     break;
