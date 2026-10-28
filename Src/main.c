@@ -831,6 +831,7 @@ int main ( void ) {
                         Orient_Stop();
                         Orient_Reset();
                         deposit_stage = DEPOSIT_CENTRE;
+                        centre_found = false;
                     } else {
                         deposit_rotating = true;
                         Rotate_Reset();
@@ -842,6 +843,13 @@ int main ( void ) {
                     if (centre_found) {
                         deposit_stage = DEPOSIT_APPROACH;
                     }
+                    else if (!centre_found) {
+                        // Bollard lost: go back to SEARCH
+                        Orient_Fail();
+                        deposit_stage = DEPOSIT_SEARCH;
+
+                    }
+
                     break;
 
                 case DEPOSIT_APPROACH:
