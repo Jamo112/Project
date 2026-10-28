@@ -5,7 +5,7 @@
  ******************************************************************************
  */
 
-#include "ultrasonic.h"
+#include "Ultrasonic.h"
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -13,7 +13,7 @@
 #include "stm32g4xx.h"
 #include "kobuki.h"
 #include "uart.h"
-#include "adc.h"
+#include "ADC.h"
 #include "Ultrasonic.h"
 
 
@@ -44,7 +44,7 @@
 #define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
 #define DEPOSIT_DETECT_DISTANCE_MM  (200U + SENSOR_OFFSET_MM)
-#define DEPOSIT_STOP_DISTANCE_MM   (100U)
+#define DEPOSIT_STOP_DISTANCE_MM   TARGET_DISTANCE_100_MM
 
 // SEARCH tuning
 #define SEARCH_ROTATION_INCREMENT_DEG   11
@@ -156,6 +156,7 @@ typedef enum {
 } DepositStage;
 
 static DepositStage deposit_stage = DEPOSIT_SEARCH;
+static bool deposit_rotating = false;
 
 typedef enum {
     BUMPER_IDLE = 0,
@@ -381,6 +382,7 @@ static bool Emergency_Stop_Check(Kobuki_Typedef *kobuki, bool *rotating) {
     storage_step = 0;
     storage_started = false;
     deposit_stage = DEPOSIT_SEARCH;
+    deposit_rotating = false;
 
     return true;
 }
@@ -798,6 +800,7 @@ int main ( void ) {
                 // Finished entering storage
                 storage_step = 0;
                 deposit_stage = DEPOSIT_SEARCH;
+                deposit_rotating = false;
                 Orient_Reset();
                 state = DEPOSIT;
             }
@@ -816,13 +819,21 @@ int main ( void ) {
 
             switch (deposit_stage) {
                 case DEPOSIT_SEARCH:
-                    // Turn until the bollard enters the ultrasonic beam.
+                    // Scan in steps so each reading is taken while stationary.
+                    if (deposit_rotating) {
+                        if (Rotate_Angle(&kobuki, SEARCH_ROTATION_INCREMENT_DEG)) {
+                            deposit_rotating = false;
+                        }
+                        break;
+                    }
+
                     if (DETECT_BOLLARD(&object, DEPOSIT_DETECT_DISTANCE_MM)) {
                         Orient_Stop();
                         Orient_Reset();
                         deposit_stage = DEPOSIT_CENTRE;
                     } else {
-                        Kobuki_Rotate(SEARCH_SPEED_MM_S);
+                        deposit_rotating = true;
+                        Rotate_Reset();
                     }
                     break;
 
@@ -840,7 +851,6 @@ int main ( void ) {
                     } else {
                         Kobuki_Drive(STOP);
                         deposit_stage = DEPOSIT_COMPLETE;
-                        state = IDLE;
                     }
                     break;
 
