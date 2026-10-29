@@ -1,8 +1,14 @@
 /**
  ******************************************************************************
  * @file           : main.c
- * @brief          : Autonomous Mobile Robot - Main FSM
+ * @brief          : Kuboki_Project
  ******************************************************************************
+    Written by:
+    Jesse Jamieson: A1925902
+    Lucas Shaw: A1886336
+    Lachlan Smart: A1924193
+
+
  */
 
 #include "Ultrasonic.h"
