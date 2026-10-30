@@ -43,13 +43,13 @@
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_100_MM  (100U + SENSOR_OFFSET_MM)
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
-#define DEPOSIT_DETECT_DISTANCE_MM  (200U + SENSOR_OFFSET_MM)
+#define DEPOSIT_DETECT_DISTANCE_MM  (50U + SENSOR_OFFSET_MM)
 #define DEPOSIT_SENSOR_OFFSET_MM   200U
 #define DEPOSIT_FRONT_CLEARANCE_MM  220U
 #define DEPOSIT_STOP_DISTANCE_MM   (DEPOSIT_SENSOR_OFFSET_MM + DEPOSIT_FRONT_CLEARANCE_MM)
 
 // SEARCH tuning
-#define SEARCH_ROTATION_INCREMENT_DEG   11
+#define SEARCH_ROTATION_INCREMENT_DEG   -11
 
 // Bumper recovery distances and turn angle.
 #define FRONT_BUMPER_REVERSE_MM  100
@@ -744,11 +744,11 @@ int main ( void ) {
             case PATH_FACE_STORAGE:
                 // 135 degree rotation to face storage area
                 if (course_direction == Course_Left) {
-                    if (Rotate_Angle(&kobuki, -135)) {
+                    if (Rotate_Angle(&kobuki, -133)) {
                         path_stage = PATH_COMPLETE;
                     }
                 } else if (course_direction == Course_Right) {
-                    if (Rotate_Angle(&kobuki, 135)) {
+                    if (Rotate_Angle(&kobuki, 133)) {
                         path_stage = PATH_COMPLETE;
                     }
                 }
@@ -785,7 +785,7 @@ int main ( void ) {
             if (storage_step == 0) {
                 // Drive into the storage area
                 if (!storage_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 850);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 150);
                     kobuki.distance_complete = 0;
                     storage_started = true;
                 }
