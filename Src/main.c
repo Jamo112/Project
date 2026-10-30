@@ -1,8 +1,14 @@
 /**
  ******************************************************************************
  * @file           : main.c
- * @brief          : Autonomous Mobile Robot - Main FSM
+ * @brief          : Kuboki_Project
  ******************************************************************************
+    Written by:
+    Jesse Jamieson: A1925902
+    Lucas Shaw: A1886336
+    Lachlan Smart: A1924193
+
+
  */
 
 #include "Ultrasonic.h"
@@ -21,7 +27,7 @@
  * DEFINES
  * =========================================================================*/
 
-// Button Mask
+// Button definitions
 #define BUTTON_0_START      0x01U
 #define BUTTON_1_STOP       0x02U
 #define BUTTON_2_ROTATE     0x04U
@@ -233,13 +239,13 @@ bool Rotate_Angle(Kobuki_Typedef *kobuki, int16_t angle) {
 // ORIENT helpers
 // ---------------------------------------------------------------------------
 
-// Cancel any rotation step that is still in flight
+// Cancel any rotation step that is still in going
 static void Orient_Stop(void) {
     Kobuki_Drive(STOP);
     Rotate_Reset();
 }
 
-// Reset the WHOLE centring sub-FSM (otherwise a second run starts in COMPLETE)
+// Reset the WHOLE centring sub-FSM so it can be called again from scratch
 static void Orient_Reset(void) {
     centre_found     = false;
     course_direction = Course_Undefined;
@@ -250,6 +256,7 @@ static void Orient_Reset(void) {
     Rotate_Reset();
 }
 
+// 
 static void Bumper_Save_Distance_Setpoint(void) {
     bumper_resume_distance = false;
 
@@ -403,16 +410,16 @@ static void Orient_Fail(void) {
 // ---------------------------------------------------------------------------
 // Bollard_centre: centre the robot on the bollard.
 // Entered just after SEARCH first sees the bollard, so we start inside the beam.
-//   1) step CW until the bollard is lost          -> theta_right
-//   2) reverse, step CCW until it is seen again
-//   3) keep going CCW until it is lost again      -> theta_left
-//   4) turn to theta_target = (theta_left + theta_right) / 2
+//   1) go Clockwise until the bollard is lost          -> right
+//   2) reverse, go CCW until it is seen again
+//   3) keep going CCW until it is lost again      -> left
+//   4) turn to target = (left + right) / 2
 // ---------------------------------------------------------------------------
 void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
     int32_t delta;
     uint16_t detection_distance = TARGET_DISTANCE_350_MM;
     if (state == DEPOSIT) {
-        detection_distance = DEPOSIT_DETECT_DISTANCE_MM;
+        detection_distance = DEPOSIT_DETECT_DISTANCE_MM; //so usable for depositing stage
     }
     bool    seen = DETECT_BOLLARD(object, detection_distance);
 
@@ -448,14 +455,14 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
                 if (orient_samples >= ORIENT_CONFIRM_SAMPLES) {
                     theta_right    = orient_edge_cand;
                     orient_samples = 0;
-                    Orient_Stop();                      // cancel the CW step in flight
+                    Orient_Stop();                      // cancel the CW step
                     orient_stage   = ORIENT_REENTER;
                 }
             } else {
                 orient_samples = 0;
             }
 
-            // Never lost it: too wide to be a bollard
+            // Never lost it: too wide to be a bollard (wall?)
             if ((-orient_cum) > ORIENT_SPAN_LIMIT_CDEG) {
                 Orient_Fail();
             }
