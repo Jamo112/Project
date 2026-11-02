@@ -39,11 +39,10 @@
 #define ROTATE_SPEED_MM_S   ((int16_t)100)
 
 // Approximate delay for the AVOID state.
-// Adjust this value if the rotation is too short or too long.
 #define AVOID_DELAY_COUNT   300000U
 
 // Common distances
-#define SENSOR_OFFSET_MM        500U    // A value that allows for easy adjustments of offset
+#define SENSOR_OFFSET_MM        500U    // Offset added to ultrasonic distance measurements
 #define TARGET_DISTANCE_350_MM  (350U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_400_MM  (400U + SENSOR_OFFSET_MM)
 #define TARGET_DISTANCE_150_MM  (150U + SENSOR_OFFSET_MM)
@@ -73,11 +72,9 @@
 
 // ORIENT (bollard centring) tuning
 // Gyro angle increases CCW: a NEGATIVE step is CW, a POSITIVE step is CCW.
-// If your robot turns the wrong way, flip the signs of the steps in Bollard_centre().
 #define ORIENT_STEP_DEG           2       // each sweep step (deg)
 #define ORIENT_CONFIRM_SAMPLES    3U      // consecutive readings to confirm an edge
 #define ORIENT_FIND_LIMIT_CDEG    4500L   // max sweep to re-enter the bollard (0.01 deg = 45 deg)
-#define ORIENT_SPAN_LIMIT_CDEG    9000L   // max object width (0.01 deg = 90 deg), wider = wall
 #define ORIENT_MIN_SPAN_CDEG      300L    // narrower than 3 deg = noise
 
 // Logic
@@ -409,7 +406,7 @@ static void Orient_Fail(void) {
 
 // ---------------------------------------------------------------------------
 // Bollard_centre: centre the robot on the bollard.
-// Entered just after SEARCH first sees the bollard, so we start inside the beam.
+// Entered after SEARCH detects a bollard, with the bollard inside the sensor beam.
 //   1) go Clockwise until the bollard is lost          -> right
 //   2) reverse, go CCW until it is seen again
 //   3) keep going CCW until it is lost again      -> left
@@ -462,10 +459,6 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
                 orient_samples = 0;
             }
 
-            // Never lost it: too wide to be a bollard (wall?)
-            if ((-orient_cum) > ORIENT_SPAN_LIMIT_CDEG) {
-                Orient_Fail();
-            }
             break;
 
         // -------- 2) reverse until the bollard is back in the beam --------
@@ -515,11 +508,6 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
                 orient_samples = 0;
             }
 
-            // Too wide to be a bollard (wall?)
-            if ((orient_stage == ORIENT_FIND_EXIT) &&
-                ((orient_cum - theta_right) > ORIENT_SPAN_LIMIT_CDEG)) {
-                Orient_Fail();
-            }
             break;
 
         // -------- 4) turn to the centreline --------
@@ -637,7 +625,7 @@ int main ( void ) {
                 break;
             }
 
-            // Nothing in range: rotate another 17 deg and look again
+            // Nothing in range: rotate another 11 deg and look again
             rotating = true;
             Rotate_Reset();
             break;
@@ -659,14 +647,14 @@ int main ( void ) {
                 // Step 1: centre on the bollard
                 Bollard_centre(&kobuki, &object);
             } else {
-                // Step 2: decide the course ONCE, now that we are centred and stationary
+                // Step 2: decide the course once centring is complete.
                 if (course_direction == Course_Undefined) {
                     if (DETECT_BOLLARD(&object, TARGET_DISTANCE_150_MM)) {
                         course_direction = Course_Left;
                     } else {
                         course_direction = Course_Right;
                     }
-                    // if we see a bollard within 150mm we go left route else we go the right route. 
+                    // A bollard within 150 mm selects the left route; otherwise, the right route is selected.
 
                     Rotate_Reset();
                 }
