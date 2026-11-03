@@ -50,7 +50,7 @@
 #define DEPOSIT_APPROACH_SPEED_MM_S ((int16_t)50)
 #define DEPOSIT_DETECT_DISTANCE_MM  (50U + SENSOR_OFFSET_MM)
 #define DEPOSIT_SENSOR_OFFSET_MM   200U
-#define DEPOSIT_FRONT_CLEARANCE_MM  220U
+#define DEPOSIT_FRONT_CLEARANCE_MM  200U
 #define DEPOSIT_STOP_DISTANCE_MM   (DEPOSIT_SENSOR_OFFSET_MM + DEPOSIT_FRONT_CLEARANCE_MM)
 
 // SEARCH tuning
@@ -780,7 +780,7 @@ int main ( void ) {
             if (storage_step == 0) {
                 // Drive into the storage area
                 if (!storage_started) {
-                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 150);
+                    Kobuki_Drive_Distance_Setpoint(kobuki.distance, 850);
                     kobuki.distance_complete = 0;
                     storage_started = true;
                 }
