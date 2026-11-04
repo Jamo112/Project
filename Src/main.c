@@ -125,7 +125,7 @@ static int32_t theta_target = 0;    // centreline = (theta_left + theta_right) /
 
 static int16_t orient_last_angle = 0;   // previous gyro reading
 static int32_t orient_cum        = 0;   // heading change since ORIENT started
-static int32_t orient_edge_cand  = 0;   // heading at the first "lost" sample
+static int32_t orient_edge  = 0;   // heading at the first "lost" sample
 static uint8_t orient_samples    = 0;
 static bool    orient_first      = true;
 
@@ -413,8 +413,8 @@ static void Orient_Fail(void) {
 //   4) turn to target = (left + right) / 2
 // ---------------------------------------------------------------------------
 void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
-    int32_t delta;
-    uint16_t detection_distance = TARGET_DISTANCE_350_MM;
+    int32_t delta; // change in angle since last
+    uint16_t detection_distance = TARGET_DISTANCE_350_MM; // so usable for SEARCH stage
     if (state == DEPOSIT) {
         detection_distance = DEPOSIT_DETECT_DISTANCE_MM; //so usable for depositing stage
     }
@@ -422,21 +422,21 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
 
     // First call after a reset: take a reference heading
     if (orient_first) {
-        orient_last_angle = kobuki->angle;
-        orient_cum        = 0;
-        orient_samples    = 0;
-        orient_first      = false;
+        orient_last_angle = kobuki->angle; // angle in 0.01 deg, wraps at +/-18000
+        orient_cum        = 0; // cumulative heading change since the start of centring
+        orient_samples    = 0; // consecutive readings to confirm an edge
+        orient_first      = false; // clear the flag so this only happens once
     }
 
-    // Accumulate the heading change (gyro is 0.01 deg and wraps at +/-18000)
+    // Accumulate the heading change (angle is 0.01 deg and wraps at +/-18000)
     delta = (int32_t)kobuki->angle - (int32_t)orient_last_angle;
     if (delta > 18000) {
-        delta -= 36000;
+        delta -= 36000; // wrap around
     } else if (delta < -18000) {
-        delta += 36000;
+        delta += 36000; // wrap around
     }
-    orient_cum += delta;
-    orient_last_angle = kobuki->angle;
+    orient_cum += delta; // cumulative heading change since the start of centring
+    orient_last_angle = kobuki->angle; // save for the next loop
 
     switch (orient_stage) {
         // -------- 1) CW until the bollard is lost --------
@@ -445,18 +445,18 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
 
             if (!seen) {
                 if (orient_samples == 0U) {
-                    orient_edge_cand = orient_cum;      // first lost sample
+                    orient_edge = orient_cum;      // first lost sample
                 }
                 orient_samples++;
 
                 if (orient_samples >= ORIENT_CONFIRM_SAMPLES) {
-                    theta_right    = orient_edge_cand;
-                    orient_samples = 0;
-                    Orient_Stop();                      // cancel the CW step
-                    orient_stage   = ORIENT_REENTER;
+                    theta_right    = orient_edge; // save the CW edge
+                    orient_samples = 0; // reset for the next stage
+                    Orient_Stop(); // cancel the CW rotation
+                    orient_stage   = ORIENT_REENTER; // start CCW to re-enter the bollard
                 }
             } else {
-                orient_samples = 0;
+                orient_samples = 0; // reset if the bollard is seen again
             }
 
             break;
@@ -466,10 +466,10 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
             Rotate_Angle(kobuki, ORIENT_STEP_DEG);
 
             if (seen) {
-                orient_samples++;
+                orient_samples++; // count consecutive readings to confirm the bollard is back in view
 
                 if (orient_samples >= ORIENT_CONFIRM_SAMPLES) {
-                    orient_samples = 0;
+                    orient_samples = 0; // reset for the next stage
                     orient_stage   = ORIENT_FIND_EXIT;  // same direction, keep going
                 }
             } else {
@@ -478,7 +478,7 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
 
             // Lost it for good
             if ((orient_cum - theta_right) > ORIENT_FIND_LIMIT_CDEG) {
-                Orient_Fail();
+                Orient_Fail(); // Probably noise: go back to SEARCH
             }
             break;
 
@@ -488,24 +488,24 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
 
             if (!seen) {
                 if (orient_samples == 0U) {
-                    orient_edge_cand = orient_cum;      // first lost sample
+                    orient_edge = orient_cum;      // first lost sample
                 }
-                orient_samples++;
+                orient_samples++; // count consecutive readings to confirm the bollard is lost
 
                 if (orient_samples >= ORIENT_CONFIRM_SAMPLES) {
-                    theta_left     = orient_edge_cand;
-                    orient_samples = 0;
+                    theta_left     = orient_edge; // save the CCW edge
+                    orient_samples = 0; // reset for the next stage
                     Orient_Stop();
 
                     if ((theta_left - theta_right) < ORIENT_MIN_SPAN_CDEG) {
                         Orient_Fail();                  // noise spike
                     } else {
-                        theta_target = (theta_left + theta_right) / 2;
-                        orient_stage = ORIENT_RETURN_CENTRE;
+                        theta_target = (theta_left + theta_right) / 2; // target = middle of the two edges
+                        orient_stage = ORIENT_RETURN_CENTRE; // turn to the centre
                     }
                 }
             } else {
-                orient_samples = 0;
+                orient_samples = 0; // reset if the bollard is seen again
             }
 
             break;
@@ -514,13 +514,13 @@ void Bollard_centre(Kobuki_Typedef *kobuki, US_Typedef *object) {
         case ORIENT_RETURN_CENTRE:
             // Angle to turn is evaluated every call, but only used when the rotation starts
             if (Rotate_Angle(kobuki, (int16_t)((theta_target - orient_cum) / 100))) {
-                centre_found = true;
-                orient_stage = ORIENT_COMPLETE;
+                centre_found = true; // finished centring
+                orient_stage = ORIENT_COMPLETE; // go to the final stage
             }
             break;
 
         case ORIENT_COMPLETE:
-            centre_found = true;
+            centre_found = true; // finished centring
             break;
 
         default:
