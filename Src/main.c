@@ -529,21 +529,6 @@ void Bollard_Centre(Kobuki_Typedef *kobuki, US_Typedef *Ultrasonic_Object) {
     }
 }
 
-static void Send_Kobuki_Move(int16_t speed, int16_t radius) {
-    uint8_t payload[6];
-
-    payload[0] = 0x01U;
-    payload[1] = 0x04U;
-
-    payload[2] = (uint8_t)(speed & 0xFF);
-    payload[3] = (uint8_t)((uint16_t)speed >> 8);
-
-    payload[4] = (uint8_t)(radius & 0xFF);
-    payload[5] = (uint8_t)((uint16_t)radius >> 8);
-
-    Kobuki_Tx(payload, sizeof(payload));
-}
-
 
 
 
