@@ -552,8 +552,6 @@ static void Send_Kobuki_Move(int16_t speed, int16_t radius) {
  * =========================================================================*/
 int main ( void ) {
     // Both of these only for testing purposes . Not required
-    volatile uint16_t Ultrasonic_Reading;
-    volatile uint16_t Adc_Reading;
     bool Rotation_In_Progress = false;
     Kobuki_Typedef kobuki = {0};
     US_Typedef Ultrasonic_Object;
@@ -571,8 +569,6 @@ int main ( void ) {
         Kobuki_Read (&kobuki );
         Ultrasonic_Detect (&Ultrasonic_Object ) ;
         // Both of these only for testing purposes . Not required
-        Ultrasonic_Reading = Ultrasonic_Read();
-        Adc_Reading = ADC_Read ( ADC_CHANNEL_1);
         Kobuki_Update_LEDs ( led_1 , led_2);
 
         // A TEST FSM
