@@ -1,3 +1,6 @@
+// Jesse Jamieson A1925902 , Lucas Shaw A1886336, Lachlan Smart A1924193
+// Code is not original, provided by lecture and project material 
+
 #ifndef ULTRASONIC_H
 #define ULTRASONIC_H
 

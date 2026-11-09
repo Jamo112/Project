@@ -1,14 +1,9 @@
-/**
+/** Jesse Jamieson A1925902 , Lucas Shaw A1886336, Lachlan Smart A1924193
+// Sections of code are not original, provided by lecture and project material, and modified to suit the project requirements.
  ******************************************************************************
  * @file           : main.c
  * @brief          : Kuboki_Project
  ******************************************************************************
-    Written by:
-    Jesse Jamieson: A1925902
-    Lucas Shaw: A1886336
-    Lachlan Smart: A1924193
-
-
  */
 
 #include "Ultrasonic.h"
@@ -109,9 +104,9 @@ CourseDirection Course_Direction = Course_Undefined;
 
 // Bollard centring sub-FSM stages
 typedef enum {
-    ORIENT_FIND_EDGE,       // step CW until the bollard is lost       -> theta_right
-    ORIENT_REENTER,         // step CCW until the bollard is seen again
-    ORIENT_FIND_EXIT,       // keep stepping CCW until it is lost      -> theta_left
+    ORIENT_FIND_EDGE,       // step CW until the bollard is lost       -> right
+    ORIENT_RE_ENTER,         // step CCW until the bollard is seen again
+    ORIENT_FIND_EXIT,       // keep stepping CCW until it is lost      -> left
     ORIENT_RETURN_CENTRE,   // turn to the middle of the two edges
     ORIENT_COMPLETE
 } OrientStage;
@@ -119,14 +114,14 @@ typedef enum {
 static OrientStage Orient_Stage = ORIENT_FIND_EDGE;
 
 // Edge headings are CUMULATIVE angles in 0.01 deg (no +/-180 wrap problems)
-static int32_t Theta_Right  = 0;    // CW edge
-static int32_t Theta_Left   = 0;    // CCW edge
-static int32_t Theta_Target = 0;    // centreline = (theta_left + theta_right) / 2
+static int32_t Right  = 0;    // CW edge
+static int32_t Left   = 0;    // CCW edge
+static int32_t Target = 0;    // centreline = (left + right) / 2
 
-static int16_t Orient_Last_Angle = 0;   // previous gyro reading
-static int32_t Orient_Cumulative_Angle        = 0;   // heading change since ORIENT started
-static int32_t Orient_Edge_Angle  = 0;   // heading at the first "lost" sample
-static uint8_t Orient_Samples    = 0;
+static int16_t Last_Angle = 0;   // previous gyro reading
+static int32_t Cumulative_Angle        = 0;   // heading change since ORIENT started
+static int32_t Edge_Angle  = 0;   // heading at the first "lost" sample
+static uint8_t Samples    = 0;
 static bool    Orient_First      = true;
 
 bool Centre_Found = false;
@@ -247,8 +242,8 @@ static void Orient_Reset(void) {
     Centre_Found     = false;
     Course_Direction = Course_Undefined;
     Orient_Stage     = ORIENT_FIND_EDGE;
-    Orient_Samples   = 0;
-    Orient_Cumulative_Angle       = 0;
+    Samples   = 0;
+    Cumulative_Angle       = 0;
     Orient_First     = true;
     Rotation_Reset();
 }
@@ -413,7 +408,7 @@ static void Orient_Fail(void) {
 //   4) turn to target = (left + right) / 2
 // ---------------------------------------------------------------------------
 void Bollard_Centre(Kobuki_Typedef *kobuki, US_Typedef *Ultrasonic_Object) {
-    int32_t Angle_Delta; // change in angle since last
+    int32_t Angle_Change; // change in angle since last
     uint16_t Detection_Distance = TARGET_DISTANCE_350_MM; // so usable for SEARCH stage
     if (Robot_State == DEPOSIT) {
         Detection_Distance = DEPOSIT_DETECT_DISTANCE_MM; //so usable for depositing stage
@@ -422,21 +417,21 @@ void Bollard_Centre(Kobuki_Typedef *kobuki, US_Typedef *Ultrasonic_Object) {
 
     // First call after a reset: take a reference heading
     if (Orient_First) {
-        Orient_Last_Angle = kobuki->angle; // angle in 0.01 deg, wraps at +/-18000
-        Orient_Cumulative_Angle        = 0; // cumulative heading change since the start of centring
-        Orient_Samples    = 0; // consecutive readings to confirm an edge
-        Orient_First      = false; // clear the flag so this only happens once
+        Last_Angle = kobuki->angle; // angle in 0.01 deg, wraps at +/-18000
+        Cumulative_Angle = 0; // cumulative heading change since the start of centring
+        Samples = 0; // consecutive readings to confirm an edge (need 3 to avoid noise)
+        Orient_First = false; // clear the flag so this only happens once
     }
 
     // Accumulate the heading change (angle is 0.01 deg and wraps at +/-18000)
-    Angle_Delta = (int32_t)kobuki->angle - (int32_t)Orient_Last_Angle;
-    if (Angle_Delta > 18000) {
-        Angle_Delta -= 36000; // wrap around
-    } else if (Angle_Delta < -18000) {
-        Angle_Delta += 36000; // wrap around
+    Angle_Change = (int32_t)kobuki->angle - (int32_t)Last_Angle;
+    if (Angle_Change > 18000) {
+        Angle_Change -= 36000; // wrap around
+    } else if (Angle_Change < -18000) {
+        Angle_Change += 36000; // wrap around
     }
-    Orient_Cumulative_Angle += Angle_Delta; // cumulative heading change since the start of centring
-    Orient_Last_Angle = kobuki->angle; // save for the next loop
+    Cumulative_Angle += Angle_Change; // cumulative heading change since the start of centring
+    Last_Angle = kobuki->angle; // save for the next loop
 
     switch (Orient_Stage) {
         // -------- 1) CW until the bollard is lost --------
@@ -444,40 +439,41 @@ void Bollard_Centre(Kobuki_Typedef *kobuki, US_Typedef *Ultrasonic_Object) {
             Rotation_Angle(kobuki, -ORIENT_STEP_DEG);
 
             if (!Bollard_Seen) {
-                if (Orient_Samples == 0U) {
-                    Orient_Edge_Angle = Orient_Cumulative_Angle;      // first lost sample
+                if (Samples == 0U) {
+                    Edge_Angle = Cumulative_Angle;      // first lost sample
                 }
-                Orient_Samples++;
+                Samples++;
 
-                if (Orient_Samples >= ORIENT_CONFIRM_SAMPLES) {
-                    Theta_Right    = Orient_Edge_Angle; // save the CW edge
-                    Orient_Samples = 0; // reset for the next stage
+                if (Samples >= ORIENT_CONFIRM_SAMPLES) // more than 3 consecutive readings to confirm the bollard is lost
+                {
+                    Right = Edge_Angle; // save the CW edge
+                    Samples = 0; // reset for the next stage
                     Orient_Stop(); // cancel the CW rotation
-                    Orient_Stage   = ORIENT_REENTER; // start CCW to re-enter the bollard
+                    Orient_Stage   = ORIENT_RE_ENTER; // start CCW to re-enter the bollard
                 }
             } else {
-                Orient_Samples = 0; // reset if the bollard is seen again
+                Samples = 0; // reset if the bollard is seen again
             }
 
             break;
 
         // -------- 2) reverse until the bollard is back in the beam --------
-        case ORIENT_REENTER:
+        case ORIENT_RE_ENTER:
             Rotation_Angle(kobuki, ORIENT_STEP_DEG);
 
             if (Bollard_Seen) {
-                Orient_Samples++; // count consecutive readings to confirm the bollard is back in view
+                Samples++; // count consecutive readings to confirm the bollard is back in view
 
-                if (Orient_Samples >= ORIENT_CONFIRM_SAMPLES) {
-                    Orient_Samples = 0; // reset for the next stage
+                if (Samples >= ORIENT_CONFIRM_SAMPLES) {
+                    Samples = 0; // reset for the next stage
                     Orient_Stage   = ORIENT_FIND_EXIT;  // same direction, keep going
                 }
             } else {
-                Orient_Samples = 0;
+                Samples = 0;
             }
 
             // Lost it for good
-            if ((Orient_Cumulative_Angle - Theta_Right) > ORIENT_FIND_LIMIT_CDEG) {
+            if ((Cumulative_Angle - Right) > ORIENT_FIND_LIMIT_CDEG) {
                 Orient_Fail(); // Probably noise: go back to SEARCH
             }
             break;
@@ -487,25 +483,25 @@ void Bollard_Centre(Kobuki_Typedef *kobuki, US_Typedef *Ultrasonic_Object) {
             Rotation_Angle(kobuki, ORIENT_STEP_DEG);
 
             if (!Bollard_Seen) {
-                if (Orient_Samples == 0U) {
-                    Orient_Edge_Angle = Orient_Cumulative_Angle;      // first lost sample
+                if (Samples == 0U) {
+                    Edge_Angle = Cumulative_Angle;      // first lost sample
                 }
-                Orient_Samples++; // count consecutive readings to confirm the bollard is lost
+                Samples++; // count consecutive readings to confirm the bollard is lost
 
-                if (Orient_Samples >= ORIENT_CONFIRM_SAMPLES) {
-                    Theta_Left     = Orient_Edge_Angle; // save the CCW edge
-                    Orient_Samples = 0; // reset for the next stage
+                if (Samples >= ORIENT_CONFIRM_SAMPLES) {
+                    Left = Edge_Angle; // save the CCW edge
+                    Samples = 0; // reset for the next stage
                     Orient_Stop();
 
-                    if ((Theta_Left - Theta_Right) < ORIENT_MIN_SPAN_CDEG) {
+                    if ((Left - Right) < ORIENT_MIN_SPAN_CDEG) {
                         Orient_Fail();                  // noise spike
                     } else {
-                        Theta_Target = (Theta_Left + Theta_Right) / 2; // target = middle of the two edges
+                        Target = (Left + Right) / 2; // target = middle of the two edges
                         Orient_Stage = ORIENT_RETURN_CENTRE; // turn to the centre
                     }
                 }
             } else {
-                Orient_Samples = 0; // reset if the bollard is seen again
+                Samples = 0; // reset if the bollard is seen again
             }
 
             break;
@@ -513,7 +509,7 @@ void Bollard_Centre(Kobuki_Typedef *kobuki, US_Typedef *Ultrasonic_Object) {
         // -------- 4) turn to the centreline --------
         case ORIENT_RETURN_CENTRE:
             // Angle to turn is evaluated every call, but only used when the rotation starts
-            if (Rotation_Angle(kobuki, (int16_t)((Theta_Target - Orient_Cumulative_Angle) / 100))) {
+            if (Rotation_Angle(kobuki, (int16_t)((Target - Cumulative_Angle) / 100))) {
                 Centre_Found = true; // finished centring
                 Orient_Stage = ORIENT_COMPLETE; // go to the final stage
             }

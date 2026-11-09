@@ -1,3 +1,5 @@
+// Jesse Jamieson A1925902 , Lucas Shaw A1886336, Lachlan Smart A1924193
+// Code is not original, provided by lecture and project material 
 #include <stdint.h>
 #define STM32G474xx
 #include "stm32g4xx.h"
