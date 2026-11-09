@@ -1,5 +1,5 @@
 // Jesse Jamieson A1925902 , Lucas Shaw A1886336, Lachlan Smart A1924193
-// code is not original, provided by lecture and project material, and modified to suit
+// Code is not original, provided by lecture and project material, and modified to suit
 
 #ifndef ADC_H
 #define ADC_H
