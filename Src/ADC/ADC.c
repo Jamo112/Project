@@ -1,5 +1,5 @@
 // Jesse Jamieson A1925902 , Lucas Shaw A1886336, Lachlan Smart A1924193
-// Sections of code are not original, provided by lecture and project material, and modified to suit the project requirements.
+// Code is not original, provided by lecture and project material, and modified to suit the project requirements.
 #include "stm32g474xx.h"
 # include <stdint.h>
 # define STM32G474xx
